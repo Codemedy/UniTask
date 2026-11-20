@@ -43,6 +43,7 @@
 * [`docs/DATABASE.md`](docs/DATABASE.md): ER-диаграмма, таблицы, связи, ON DELETE, как модули общаются с БД
 * [`docs/schema.sql`](docs/schema.sql): та же схема на SQL (PostgreSQL) + примеры запросов
 * [`docs/PRESENTATION.md`](docs/PRESENTATION.md): план слайдов по участникам, сценарий демо, ответы на вопросы
+* [`docs/SPEECH.md`](docs/SPEECH.md): текст выступления на английском для каждого участника
 * [`docs/screenshots/`](docs/screenshots): скриншоты для слайдов
 
 ## Тесты
