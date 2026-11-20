@@ -1,6 +1,6 @@
 /* Builds dist/unitask.html — the whole app in ONE file (CSS and JS inlined).
  * Handy for e-mailing the demo or hosting it anywhere as a single page.
- * Usage: node scripts/build-single.js
+ * Usage: node scripts/build-single.js [--embed]
  */
 'use strict';
 const fs = require('node:fs');
@@ -17,7 +17,20 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, src) => {
   return `<script>/* ${src} */\n${code}\n</script>`;
 });
 
+/* --embed: variant for hosts that put the page inside their own frame
+ * (e.g. a claude.ai artifact): plain "#name" routes, no outer <html>/<body>. */
+const embed = process.argv.includes('--embed');
+if (embed) {
+  html = html
+    .replace(/#\/settings/g, '#prefs')
+    .replace(/(["'])#\//g, '$1#')
+    .replace(/<title>[^<]*<\/title>/, '<title>UniTask Demo</title>')
+    .replace(/<!doctype html>\s*<html[^>]*>\s*<head>/i, '')
+    .replace(/<\/head>\s*<body>/i, '')
+    .replace(/<\/body>\s*<\/html>\s*$/i, '');
+}
+
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
-const out = path.join(root, 'dist', 'unitask.html');
+const out = path.join(root, 'dist', embed ? 'unitask-embed.html' : 'unitask.html');
 fs.writeFileSync(out, html);
 console.log(`Wrote ${path.relative(root, out)} (${(html.length / 1024).toFixed(1)} KB)`);

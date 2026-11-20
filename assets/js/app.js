@@ -41,7 +41,8 @@
 
   /* ---------- router ---------- */
   function route() {
-    const name = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'dashboard';
+    const raw = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'dashboard';
+    const name = raw === 'prefs' ? 'settings' : raw; // alias used by the single-file (embedded) build
     const key = ROUTES.includes(name) ? name : 'dashboard';
     const page = UT.pages[key];
     current = page;
