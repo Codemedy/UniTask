@@ -17,8 +17,6 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, src) => {
   return `<script>/* ${src} */\n${code}\n</script>`;
 });
 
-/* --embed: variant for hosts that put the page inside their own frame
- * (e.g. a claude.ai artifact): plain "#name" routes, no outer <html>/<body>. */
 const embed = process.argv.includes('--embed');
 if (embed) {
   html = html
