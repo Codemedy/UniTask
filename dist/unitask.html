@@ -1,0 +1,3105 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UniTask — Student Productivity Platform</title>
+  <meta name="description" content="UniTask: tasks, weekly schedule, notes and progress for university students. Data is stored in the browser (LocalStorage).">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <!-- Apply the saved theme before first paint to avoid a light/dark flash -->
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('unitask.v1.settings') || '{}');
+        var t = s.theme || 'system';
+        if (t === 'system') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* storage blocked: keep default */ }
+    })();
+  </script>
+  <style>
+/* UniTask — style.css
+ * Design tokens (light + dark), layout, components and page styles.
+ * Mobile-first breakpoints: 640px (phone → tablet), 960px (tablet → desktop).
+ */
+
+/* ===================== 1. Design tokens ===================== */
+:root {
+  color-scheme: light;
+  --bg: #f5f5f2;
+  --surface: #ffffff;
+  --surface-2: #f0efec;
+  --surface-3: #e7e6e1;
+  --border: #e3e2dc;
+  --border-strong: #c9c8c0;
+  --text: #17171a;
+  --text-2: #52514e;
+  --text-muted: #6f6e69;
+  --accent: #2a78d6;
+  --accent-strong: #1c5cab;
+  --accent-soft: #e3eefc;
+  --on-accent: #ffffff;
+  --good: #0a7f0a;
+  --good-soft: #e3f4e3;
+  --warning: #9a6700;
+  --warning-soft: #fdf1d6;
+  --critical: #c22f2f;
+  --critical-soft: #fbe5e5;
+  --shadow-sm: 0 1px 2px rgba(20, 20, 15, .06);
+  --shadow: 0 1px 2px rgba(20, 20, 15, .05), 0 4px 16px rgba(20, 20, 15, .06);
+  --shadow-lg: 0 10px 40px rgba(20, 20, 15, .18);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --sidebar-w: 244px;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --surface-3: #2d2d2a;
+  --border: #2f2f2c;
+  --border-strong: #46463f;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --text-muted: #9a998f;
+  --accent: #3987e5;
+  --accent-strong: #6da7ec;
+  --accent-soft: #19304d;
+  --on-accent: #ffffff;
+  --good: #3fbf3f;
+  --good-soft: #15301a;
+  --warning: #fab219;
+  --warning-soft: #352a10;
+  --critical: #e66767;
+  --critical-soft: #3a1c1c;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 6px 20px rgba(0, 0, 0, .25);
+  --shadow-lg: 0 10px 40px rgba(0, 0, 0, .6);
+}
+
+/* ===================== 2. Base ===================== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font: 15px/1.5 var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+body.modal-open { overflow: hidden; }
+h1, h2, h3 { margin: 0; line-height: 1.25; letter-spacing: -.01em; }
+p { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+code { font-family: var(--mono); font-size: .86em; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+mark { background: #fde68a; color: #17171a; border-radius: 3px; padding: 0 1px; }
+svg.icon, .nav svg, .brand-mark svg, .icon-btn svg, #theme-toggle svg {
+  width: 18px; height: 18px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.muted { color: var(--text-muted); }
+.small { font-size: 13px; }
+.tiny { font-size: 12px; }
+.text-critical { color: var(--critical); }
+.text-good { color: var(--good); }
+.text-good svg, .text-critical svg { vertical-align: -4px; }
+.spacer { flex: 1; }
+.mt { margin-top: 22px; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.only-dark { display: none; }
+:root[data-theme="dark"] .only-dark { display: inline; }
+:root[data-theme="dark"] .only-light { display: none; }
+
+/* ===================== 3. Layout ===================== */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; z-index: 30;
+  width: var(--sidebar-w);
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 18px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 10px; color: var(--text); }
+.brand-mark { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: #fff; }
+.brand-mark svg { width: 22px; height: 22px; stroke-width: 3; }
+.brand-text { font-weight: 750; font-size: 18px; line-height: 1.1; }
+.brand-text small { display: block; font-weight: 500; font-size: 12px; color: var(--text-muted); }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 12px; border-radius: 10px;
+  color: var(--text-2); font-weight: 550;
+}
+.nav a:hover { background: var(--surface-2); color: var(--text); }
+.nav a.active { background: var(--accent-soft); color: var(--accent-strong); }
+:root[data-theme="dark"] .nav a.active { color: #cde2fb; }
+.nav-badge {
+  margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 99px;
+  background: var(--critical); color: #fff; font: 600 12px/18px var(--font); text-align: center; font-style: normal;
+}
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.sidebar-foot p { padding: 0 8px; }
+.scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .4); z-index: 25; }
+
+.main { flex: 1; min-width: 0; margin-left: var(--sidebar-w); }
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 32px 14px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+}
+.topbar h1 { font-size: 24px; font-weight: 750; }
+.topbar-title { min-width: 0; flex: 1; }
+.topbar-title p { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-actions { display: flex; gap: 8px; }
+.icon-btn.menu-btn { display: none; }
+.view { padding: 4px 32px 48px; max-width: 1280px; outline: none; }
+
+@media (max-width: 960px) {
+  .sidebar { transform: translateX(-102%); transition: transform .22s ease; box-shadow: var(--shadow-lg); }
+  .sidebar.open { transform: none; }
+  .main { margin-left: 0; }
+  .icon-btn.menu-btn { display: inline-grid; }
+  .topbar { padding: 12px 16px; }
+  .view { padding: 4px 16px 40px; }
+}
+@media (max-width: 640px) {
+  .topbar h1 { font-size: 20px; }
+  .topbar-actions .btn span { display: none; }
+  .topbar-actions .btn { padding: 9px; }
+}
+
+/* ===================== 4. Components ===================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 8px 14px; border-radius: 10px; border: 1px solid transparent;
+  font-weight: 600; font-size: 14px; line-height: 20px; white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-strong); }
+:root[data-theme="dark"] .btn-primary:hover { background: #256abf; }
+.btn-danger { background: var(--critical); color: #fff; }
+.btn-danger:hover { filter: brightness(.92); }
+.btn-ghost { background: var(--surface); border-color: var(--border); color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+.btn-danger-text { color: var(--critical); }
+.btn-danger-text:hover { color: var(--critical); background: var(--critical-soft); }
+.btn-sm { padding: 5px 10px; font-size: 13px; }
+.btn-sm svg.icon { width: 15px; height: 15px; }
+.btn-block { width: 100%; justify-content: flex-start; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.icon-btn {
+  display: inline-grid; place-items: center; width: 36px; height: 36px;
+  border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-2);
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn-sm { width: 30px; height: 30px; }
+.icon-btn-sm svg { width: 16px; height: 16px; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm);
+}
+.card-flush { padding: 0; overflow: hidden; }
+.card-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 700; margin-bottom: 12px;
+}
+.card-title.pad { padding: 16px 18px 4px; }
+.card-title svg { color: var(--text-muted); }
+.card-link { margin-left: auto; font-size: 13px; font-weight: 600; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 2px 9px; border-radius: 99px; background: var(--surface-2);
+  font-size: 12.5px; font-weight: 550; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chip svg.icon { width: 13px; height: 13px; }
+.chip em { font-style: normal; margin-left: 2px; }
+.chip-muted { color: var(--text-muted); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.pill { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-strong); vertical-align: 2px; }
+:root[data-theme="dark"] .pill { color: #cde2fb; }
+
+.prio { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; padding: 2px 8px; border-radius: 7px; }
+.prio svg.icon { width: 13px; height: 13px; }
+.prio-high { background: var(--critical-soft); color: var(--critical); }
+.prio-medium { background: var(--warning-soft); color: var(--warning); }
+.prio-low { background: var(--surface-2); color: var(--text-muted); }
+.status { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 7px; }
+.status-in_progress { background: var(--accent-soft); color: var(--accent-strong); }
+:root[data-theme="dark"] .status-in_progress { color: #cde2fb; }
+.due { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 550; color: var(--text-2); white-space: nowrap; }
+.due svg.icon { width: 14px; height: 14px; }
+.due-soon { color: var(--warning); }
+.due-overdue { color: var(--critical); }
+.due-done { color: var(--text-muted); }
+
+.empty { text-align: center; padding: 36px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.empty-art { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); margin-bottom: 4px; }
+.empty-art svg.icon { width: 26px; height: 26px; }
+.empty h3 { font-size: 16px; }
+.empty .btn { margin-top: 8px; }
+
+/* form controls */
+input[type=text], input[type=search], input[type=number], input[type=date], input[type=time], select, textarea {
+  width: 100%; min-width: 0; padding: 8px 11px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border-strong); outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+textarea { resize: vertical; line-height: 1.55; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.invalid { border-color: var(--critical) !important; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; min-width: 0; }
+.field > span { font-size: 13px; font-weight: 600; color: var(--text-2); }
+.field-error { color: var(--critical); font-size: 12.5px; }
+.form-error { margin: 0 20px 10px; padding: 9px 12px; border-radius: 9px; background: var(--critical-soft); color: var(--critical); font-size: 13.5px; }
+.grid-2, .grid-3 { display: grid; gap: 0 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.align-end { align-items: end; }
+@media (max-width: 640px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+.check { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; margin-bottom: 10px; font-size: 14px; user-select: none; }
+.check input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.check span::before {
+  content: ""; display: inline-block; vertical-align: -4px; width: 19px; height: 19px; margin-right: 0;
+  border-radius: 6px; border: 2px solid var(--border-strong); background: var(--surface);
+  transition: background .15s, border-color .15s;
+}
+.check span:empty::before { margin: 0; }
+.check input:checked + span::before {
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/14px no-repeat;
+  border-color: var(--accent);
+}
+.check input:focus-visible + span::before { outline: 2px solid var(--accent); outline-offset: 2px; }
+.check span { display: inline-flex; gap: 9px; align-items: center; }
+.check-round { margin: 0; }
+.check-round span::before { width: 22px; height: 22px; border-radius: 50%; }
+.check-round input:checked + span::before { background-color: var(--good); border-color: var(--good); }
+
+.search { position: relative; display: flex; align-items: center; flex: 1; min-width: 180px; }
+.search svg { position: absolute; left: 11px; color: var(--text-muted); pointer-events: none; }
+.search input { padding-left: 36px; }
+
+/* toolbar + tabs */
+.toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.toolbar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar-row select { width: auto; flex: none; }
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.tab {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  padding: 7px 12px; border-radius: 10px; border: 1px solid transparent; background: transparent;
+  font-weight: 600; font-size: 14px; color: var(--text-2);
+}
+.tab:hover { background: var(--surface-2); }
+.tab.active { background: var(--surface); border-color: var(--border); color: var(--text); box-shadow: var(--shadow-sm); }
+.count { font-size: 12px; font-weight: 600; color: var(--text-muted); background: var(--surface-2); padding: 0 7px; border-radius: 99px; }
+.tab.active .count { background: var(--accent-soft); color: var(--accent-strong); }
+.tab-alert .count { background: var(--critical-soft); color: var(--critical); }
+@media (max-width: 640px) {
+  .toolbar-row select { flex: 1 1 40%; }
+  .search { flex-basis: 100%; }
+}
+
+/* modal */
+.modal-root { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(10, 10, 8, .45); animation: fade .15s ease; }
+.modal {
+  position: relative; width: min(520px, 100%); max-height: calc(100vh - 32px); display: flex;
+  background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+  animation: pop .18s ease;
+}
+.modal-wide { width: min(680px, 100%); }
+.modal-form { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 8px 20px; }
+.modal-head h2 { font-size: 18px; }
+.modal-body { padding: 8px 20px 4px; overflow-y: auto; }
+.modal-foot { display: flex; gap: 8px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--border); }
+.confirm-text { color: var(--text-2); margin-bottom: 12px; }
+.plan { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); }
+.plan li { margin: 3px 0; }
+@media (max-width: 640px) {
+  .modal-root { padding: 0; place-items: end stretch; }
+  .modal, .modal-wide { width: 100%; border-radius: 18px 18px 0 0; max-height: 92vh; }
+}
+@keyframes pop { from { transform: translateY(8px) scale(.98); opacity: 0; } }
+@keyframes fade { from { opacity: 0; } }
+
+/* toasts + tooltip */
+.toasts { position: fixed; right: 20px; bottom: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.toast {
+  display: flex; align-items: center; gap: 10px; max-width: 380px;
+  padding: 11px 16px; border-radius: 12px; background: #17171a; color: #fff;
+  box-shadow: var(--shadow-lg); font-size: 14px; animation: pop .2s ease; transition: opacity .3s, transform .3s;
+}
+:root[data-theme="dark"] .toast { background: #f0efec; color: #17171a; }
+.toast.out { opacity: 0; transform: translateY(6px); }
+.toast-success svg { color: #3fbf3f; }
+.toast-error svg { color: #ff7a7a; }
+:root[data-theme="dark"] .toast-success svg { color: #0a7f0a; }
+:root[data-theme="dark"] .toast-error svg { color: #c22f2f; }
+@media (max-width: 640px) { .toasts { left: 16px; right: 16px; bottom: 16px; align-items: stretch; } .toast { max-width: none; } }
+.tooltip {
+  position: fixed; z-index: 300; pointer-events: none; max-width: 260px;
+  padding: 6px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 550;
+  background: #17171a; color: #fff; box-shadow: var(--shadow);
+}
+:root[data-theme="dark"] .tooltip { background: #f0efec; color: #17171a; }
+
+/* ===================== 5. Tasks ===================== */
+.task-group h3 {
+  display: flex; align-items: center; gap: 8px; padding: 14px 18px 6px;
+  font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted);
+}
+.group-overdue h3 { color: var(--critical); }
+.task-group + .task-group { border-top: 1px solid var(--border); }
+.task-list { list-style: none; margin: 0; padding: 0 0 6px; }
+.task {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  padding: 10px 12px 10px 18px; border-top: 1px solid var(--border);
+}
+.task-list > .task:first-child { border-top: 0; }
+.task::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 0 4px 4px 0; background: var(--course); }
+.task:hover { background: var(--surface-2); }
+.task-main { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.task-main:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 4px; }
+.task-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; min-width: 0; }
+.task-side { display: flex; align-items: center; gap: 10px; }
+.task-del { opacity: 0; }
+.task:hover .task-del, .task-del:focus-visible { opacity: 1; }
+.task.is-done .task-title { text-decoration: line-through; color: var(--text-muted); }
+.subprog { width: 44px; height: 5px; border-radius: 9px; background: var(--surface-3); overflow: hidden; display: inline-block; }
+.subprog i { display: block; height: 100%; background: var(--good); border-radius: 9px; }
+@media (max-width: 640px) {
+  .task { grid-template-columns: auto minmax(0, 1fr) auto; padding-left: 14px; gap: 10px; }
+  .task-side { grid-column: 2; flex-wrap: wrap; gap: 8px; }
+  .task-del { opacity: 1; grid-row: 1; grid-column: 3; }
+  .task-title { white-space: normal; }
+}
+
+/* subtask editor */
+.sub-edit { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.sub-edit li { display: flex; align-items: center; gap: 8px; }
+.sub-edit .check { margin: 0; }
+.sub-edit input[type=text] { padding: 6px 10px; }
+.sub-add { display: flex; gap: 8px; margin-top: 6px; }
+.linked { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ===================== 6. Dashboard ===================== */
+.hero { margin-bottom: 18px; }
+.hero h2 { font-size: 22px; margin-bottom: 4px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.stat {
+  display: flex; flex-direction: column; gap: 2px; padding: 16px 18px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); color: var(--text);
+}
+a.stat:hover { border-color: var(--border-strong); }
+.stat-label { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.stat-label svg.icon { width: 16px; height: 16px; color: var(--text-muted); }
+.stat-value { font-size: 30px; font-weight: 750; letter-spacing: -.02em; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.stat-critical { border-color: color-mix(in srgb, var(--critical) 40%, var(--border)); }
+.stat-critical .stat-label, .stat-critical .stat-label svg.icon, .stat-critical .stat-value { color: var(--critical); }
+@media (max-width: 960px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 400px) { .stat-value { font-size: 24px; } .stat { padding: 12px 14px; } }
+
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
+
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.timeline li { position: relative; display: flex; gap: 12px; padding: 7px 10px; border-radius: 10px; }
+.timeline li > .tl-btn { all: unset; cursor: pointer; display: flex; gap: 12px; width: 100%; }
+.timeline li::before { content: ""; width: 4px; border-radius: 4px; background: var(--course); flex: none; }
+.timeline li.live { background: var(--accent-soft); }
+.timeline li.past { opacity: .55; }
+.tl-time { font-weight: 700; font-size: 13.5px; width: 46px; flex: none; font-variant-numeric: tabular-nums; }
+.tl-time small { display: block; font-weight: 500; color: var(--text-muted); }
+.tl-body { display: flex; flex-direction: column; min-width: 0; }
+.tl-body small { font-size: 12.5px; }
+.now { font-style: normal; font-weight: 700; color: var(--accent); }
+
+.ring-row { display: flex; align-items: center; gap: 16px; }
+.ring { width: 84px; height: 84px; flex: none; }
+.ring-track { fill: none; stroke: var(--surface-3); stroke-width: 9; }
+.ring-value { fill: none; stroke: var(--good); stroke-width: 9; stroke-linecap: round; }
+.ring text { font: 750 17px var(--font); fill: var(--text); }
+
+.mini-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mini-notes button {
+  all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box;
+  padding: 9px 12px; border-radius: 10px; background: var(--surface-2); border-left: 4px solid var(--course);
+}
+.mini-notes button:hover { background: var(--surface-3); }
+.mini-notes small { font-size: 12.5px; line-height: 1.4; }
+
+.activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; }
+.activity li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; }
+.activity li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); transform: translateY(-1px); }
+.activity .act-completed i { background: var(--good); }
+.activity .act-created i { background: var(--accent); }
+.activity .act-deleted i { background: var(--critical); }
+.activity small { white-space: nowrap; font-size: 12px; }
+
+/* ===================== 7. Schedule ===================== */
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.week-wrap { overflow-x: auto; }
+.week { min-width: 640px; }
+.week-head, .week-body { display: grid; grid-template-columns: 56px repeat(var(--cols), minmax(0, 1fr)); }
+.week-head { border-bottom: 1px solid var(--border); background: var(--surface); }
+.week-head span { padding: 10px 8px; text-align: center; font-weight: 700; font-size: 13.5px; }
+.week-head small { display: block; font-weight: 500; color: var(--text-muted); font-size: 12px; }
+.week-head .today { color: var(--accent); }
+.week-body { position: relative; }
+.hours { position: relative; }
+.hours span { position: absolute; right: 8px; transform: translateY(-50%); font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.hours span:first-child { transform: none; }
+.day-col { position: relative; border-left: 1px solid var(--border); }
+.day-col.today { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.slot { all: unset; position: absolute; left: 0; right: 0; height: var(--hour); border-top: 1px solid var(--border); box-sizing: border-box; cursor: copy; }
+.slot:hover { background: var(--surface-2); }
+.cls {
+  all: unset; box-sizing: border-box; cursor: pointer; position: absolute; left: 4px; right: 4px;
+  display: flex; flex-direction: column; gap: 1px; overflow: hidden;
+  padding: 6px 8px; border-radius: 9px; font-size: 12px; line-height: 1.3;
+  background: color-mix(in srgb, var(--course) 16%, var(--surface));
+  border-left: 4px solid var(--course); color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.cls:hover { background: color-mix(in srgb, var(--course) 26%, var(--surface)); }
+.cls:focus-visible { outline: 2px solid var(--accent); }
+.cls b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cls small { color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cls.kind-lab { background-image: repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--course) 10%, transparent) 7px 9px); }
+.now-line { position: absolute; left: 0; right: 0; height: 2px; background: var(--critical); z-index: 2; pointer-events: none; }
+.now-line::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--critical); }
+.day-list { display: none; flex-direction: column; gap: 12px; }
+.day-list h3 { font-size: 15px; margin-bottom: 8px; }
+.day-list .is-today { border-color: var(--accent); }
+@media (max-width: 760px) {
+  .week-wrap { display: none; }
+  .day-list { display: flex; }
+}
+
+/* ===================== 8. Notes ===================== */
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-row:empty { display: none; }
+.tag {
+  padding: 3px 10px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface);
+  font-size: 13px; font-weight: 550; color: var(--text-2);
+}
+.tag span { color: var(--text-muted); font-size: 12px; }
+.tag.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tag.active span { color: #fff; }
+.note-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.note {
+  position: relative; display: flex; flex-direction: column; gap: 8px; min-height: 180px;
+  padding: 16px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border);
+  border-top: 4px solid var(--course); box-shadow: var(--shadow-sm); transition: box-shadow .15s, transform .15s;
+}
+.note:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.note-open { all: unset; position: absolute; inset: 0; cursor: pointer; border-radius: var(--radius); }
+.note-open:focus-visible { outline: 2px solid var(--accent); }
+.note header { display: flex; align-items: flex-start; gap: 8px; }
+.note h3 { font-size: 15.5px; flex: 1; }
+.note-body { color: var(--text-2); font-size: 13.5px; white-space: pre-line; flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }
+.note footer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.note-time { margin-left: auto; }
+.pin-btn { position: relative; z-index: 1; margin: -6px -6px 0 0; color: var(--text-muted); }
+.pin-btn.on { color: #c98500; }
+.pin-btn.on svg { fill: currentColor; }
+.tag-sm { font-size: 12px; color: var(--accent); font-weight: 550; }
+.note-area { font-family: var(--font); min-height: 200px; }
+
+/* ===================== 9. Courses ===================== */
+.course-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.course { display: flex; flex-direction: column; gap: 12px; border-top: 4px solid var(--course); }
+.course header { display: flex; gap: 12px; align-items: center; }
+.course header > div { flex: 1; min-width: 0; }
+.course h3 { font-size: 16px; }
+.course-badge {
+  width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; flex: none;
+  background: color-mix(in srgb, var(--course) 18%, var(--surface)); color: var(--text); font-weight: 750; font-size: 13px;
+}
+.course-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0; }
+.course-stats div { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
+.course-stats dt { font-size: 11.5px; color: var(--text-muted); font-weight: 600; }
+.course-stats dd { white-space: nowrap; margin: 0; font-size: 18px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.course-stats small { font-size: 11px; font-weight: 500; color: var(--text-muted); }
+.course footer { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: auto; }
+.bar-line { display: block; height: 8px; border-radius: 9px; background: var(--surface-3); overflow: hidden; }
+.bar-line > span { display: block; height: 100%; border-radius: 9px; background: var(--course, var(--accent)); }
+.bar-line.thin { height: 6px; }
+
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch input { position: absolute; opacity: 0; }
+.swatch span { display: block; width: 30px; height: 30px; border-radius: 50%; background: var(--sw); cursor: pointer; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border-strong); }
+.swatch input:checked + span { box-shadow: 0 0 0 2px var(--text); }
+.swatch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ===================== 10. Progress (charts) ===================== */
+.progress-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+.span-2 { grid-column: 1 / -1; }
+@media (max-width: 1000px) { .progress-grid { grid-template-columns: 1fr; } }
+.chart { width: 100%; height: auto; display: block; }
+.chart .gridline { stroke: var(--border); stroke-width: 1; }
+.chart .axis { stroke: var(--border-strong); stroke-width: 1; }
+.chart .tick { font: 500 11px var(--font); fill: var(--text-muted); }
+.chart .bar { fill: var(--accent); }
+.chart .hit { fill: transparent; }
+.chart .col:hover .hit, .chart .col:focus .hit { fill: var(--surface-2); }
+.chart .col { outline: none; }
+.table-view { margin-top: 10px; font-size: 13.5px; }
+.table-view summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 8px; }
+table.data th, table.data td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+table.data th { font-size: 12px; color: var(--text-muted); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+.status-list, .prio-bars, .course-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.status-list li { display: grid; grid-template-columns: 96px 1fr 32px; align-items: center; gap: 10px; font-size: 14px; }
+.status-list b { text-align: right; font-variant-numeric: tabular-nums; }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--text-2); margin: -4px 0 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.sw-done, .seg-done { background: var(--accent); }
+.sw-open, .seg-open { background: #86b6ef; }
+:root[data-theme="dark"] .sw-open, :root[data-theme="dark"] .seg-open { background: #184f95; }
+.prio-bars li { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 10px; font-size: 14px; }
+.stack-bar { display: flex; gap: 2px; height: 14px; }
+.seg { display: block; height: 100%; }
+.seg:first-child { border-radius: 4px 0 0 4px; }
+.seg:last-child { border-radius: 0 4px 4px 0; }
+.seg[style*="width:0%"] { display: none; }
+.val { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.course-bars li { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 86px; align-items: center; gap: 12px; font-size: 14px; }
+.course-bars .lbl { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.course-bars .track { height: 12px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.course-bars .track span { display: block; height: 100%; border-radius: 4px; }
+@media (max-width: 640px) {
+  .course-bars li { grid-template-columns: 1fr 70px; }
+  .course-bars .track { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* ===================== 11. Settings ===================== */
+.settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .settings-grid { grid-template-columns: 1fr; } }
+.segmented { display: inline-flex; padding: 3px; gap: 3px; border-radius: 12px; background: var(--surface-2); flex-wrap: wrap; }
+.seg-opt input { position: absolute; opacity: 0; }
+.seg-opt span { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--text-2); cursor: pointer; }
+.seg-opt input:checked + span { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.seg-opt input:focus-visible + span { outline: 2px solid var(--accent); }
+pre.json {
+  margin: 12px 0 0; max-height: 360px; overflow: auto; padding: 14px; border-radius: 10px;
+  background: var(--surface-2); font: 12.5px/1.5 var(--mono); color: var(--text-2);
+}
+.settings-grid table.data td code { word-break: break-all; }
+
+@media print {
+  .sidebar, .topbar-actions, .menu-btn { display: none !important; }
+  .main { margin: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+</style>
+</head>
+<body>
+  <!-- Inline SVG icon sprite (no external icon library needed) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+      <symbol id="i-tasks" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H20v15H5.5A1.5 1.5 0 0 0 4 19.5z"/><path d="M4 19.5A1.5 1.5 0 0 0 5.5 21H20v-3"/></symbol>
+      <symbol id="i-note" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14M10 11v6M14 11v6"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 21V9M7 14l5-5 5 5M4 3h16"/></symbol>
+      <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17.5v.01"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+      <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 8-6-16-3 8H2"/></symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#/dashboard">
+        <span class="brand-mark"><svg><use href="#i-check"/></svg></span>
+        <span class="brand-text">UniTask<small>Student productivity</small></span>
+      </a>
+      <nav class="nav" id="nav">
+        <a href="#/dashboard" data-route="dashboard"><svg><use href="#i-home"/></svg><span>Dashboard</span></a>
+        <a href="#/tasks" data-route="tasks"><svg><use href="#i-tasks"/></svg><span>Tasks</span><em class="nav-badge" id="badge-tasks" hidden></em></a>
+        <a href="#/schedule" data-route="schedule"><svg><use href="#i-calendar"/></svg><span>Schedule</span></a>
+        <a href="#/notes" data-route="notes"><svg><use href="#i-note"/></svg><span>Notes</span></a>
+        <a href="#/courses" data-route="courses"><svg><use href="#i-book"/></svg><span>Courses</span></a>
+        <a href="#/progress" data-route="progress"><svg><use href="#i-chart"/></svg><span>Progress</span></a>
+        <a href="#/settings" data-route="settings"><svg><use href="#i-settings"/></svg><span>Settings</span></a>
+      </nav>
+      <div class="sidebar-foot">
+        <button class="btn btn-ghost btn-block" id="theme-toggle" type="button" aria-label="Toggle light / dark theme">
+          <svg class="only-light"><use href="#i-moon"/></svg><svg class="only-dark"><use href="#i-sun"/></svg>
+          <span class="only-light">Dark mode</span><span class="only-dark">Light mode</span>
+        </button>
+        <p class="muted tiny">Data is saved in this browser (LocalStorage).</p>
+      </div>
+    </aside>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open menu"><svg><use href="#i-menu"/></svg></button>
+        <div class="topbar-title">
+          <h1 id="page-title">Dashboard</h1>
+          <p id="page-subtitle" class="muted"></p>
+        </div>
+        <div class="topbar-actions" id="page-actions"></div>
+      </header>
+      <main id="view" class="view" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <!-- Modal + toast containers -->
+  <div class="modal-root" id="modal-root" hidden></div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+  <!-- Scripts: plain (non-module) scripts so the app also works when opened as a local file -->
+  <script>/* assets/js/utils.js */
+/* UniTask — utils.js
+ * Small, dependency-free helpers shared by every module:
+ * ids, HTML escaping, date/time maths and formatting.
+ */
+(function (UT) {
+  'use strict';
+
+  const DAY_MS = 86400000;
+  const pad = (n) => String(n).padStart(2, '0');
+
+  const U = {
+    DAY_NAMES: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+    DAY_SHORT: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+    MONTH_SHORT: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+
+    /** Unique id with a table prefix, e.g. "tsk_lq2k9x3f8a1b" */
+    uid(prefix) {
+      const rnd = Math.random().toString(36).slice(2, 8);
+      return `${prefix}_${Date.now().toString(36)}${rnd}`;
+    },
+
+    /** Escape text before inserting it into HTML (prevents XSS from user input). */
+    esc(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    },
+
+    /* ---------- dates (all "date" values are local YYYY-MM-DD strings) ---------- */
+    toISODate(d) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    },
+    parseDate(iso) {
+      const [y, m, d] = String(iso).split('-').map(Number);
+      return new Date(y, m - 1, d);
+    },
+    today() {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d;
+    },
+    todayISO() { return U.toISODate(new Date()); },
+    addDays(date, n) {
+      const d = new Date(date);
+      d.setDate(d.getDate() + n);
+      return d;
+    },
+    isoPlusDays(n) { return U.toISODate(U.addDays(U.today(), n)); },
+    /** Whole days from today until the date (negative = in the past). */
+    daysUntil(iso) {
+      return Math.round((U.parseDate(iso) - U.today()) / DAY_MS);
+    },
+    /** 1 = Monday … 7 = Sunday (ISO weekday) */
+    isoWeekday(date) {
+      const wd = date.getDay();
+      return wd === 0 ? 7 : wd;
+    },
+    startOfWeek(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      return U.addDays(d, 1 - U.isoWeekday(d));
+    },
+    formatDate(iso, opts = {}) {
+      if (!iso) return '';
+      const d = U.parseDate(iso);
+      const base = `${d.getDate()} ${U.MONTH_SHORT[d.getMonth()]}`;
+      const withDay = opts.weekday ? `${U.DAY_SHORT[U.isoWeekday(d) - 1]}, ${base}` : base;
+      return opts.year ? `${withDay} ${d.getFullYear()}` : withDay;
+    },
+    formatDateTime(ts) {
+      if (!ts) return '';
+      const d = new Date(ts);
+      return `${U.formatDate(U.toISODate(d))}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    },
+    /** Human label for a deadline: "Today", "Tomorrow", "In 3 days", "2 days overdue". */
+    relativeDue(iso) {
+      const n = U.daysUntil(iso);
+      if (n === 0) return 'Today';
+      if (n === 1) return 'Tomorrow';
+      if (n === -1) return 'Yesterday';
+      if (n > 1) return n < 7 ? `In ${n} days` : U.formatDate(iso, { weekday: true });
+      return `${-n} days overdue`;
+    },
+    timeAgo(ts) {
+      const s = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
+      if (s < 60) return 'just now';
+      if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+      if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+      const d = Math.floor(s / 86400);
+      return d === 1 ? 'yesterday' : `${d} days ago`;
+    },
+
+    /* ---------- time of day ("HH:MM") ---------- */
+    timeToMin(t) {
+      const [h, m] = String(t).split(':').map(Number);
+      return h * 60 + m;
+    },
+    minToTime(min) { return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`; },
+
+    /* ---------- misc ---------- */
+    debounce(fn, ms = 200) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    },
+    clamp(n, a, b) { return Math.min(b, Math.max(a, n)); },
+    pct(part, whole) { return whole ? Math.round((part / whole) * 100) : 0; },
+    plural(n, one, many) { return `${n} ${n === 1 ? one : (many || one + 's')}`; },
+    capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1).replace(/_/g, ' ') : ''; },
+    /** Text excerpt for previews */
+    excerpt(text, len = 140) {
+      const t = String(text || '').replace(/\s+/g, ' ').trim();
+      return t.length > len ? t.slice(0, len - 1) + '…' : t;
+    }
+  };
+
+  UT.U = U;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/schema.js */
+/* UniTask — schema.js
+ * Declarative description of the browser "database".
+ *
+ * LocalStorage itself is only a key → string store. UniTask builds a small
+ * relational layer on top of it: every table below is stored under its own key
+ * as a JSON array, and the DB layer (db.js) enforces the rules declared here:
+ *   - primary keys (string ids with a table prefix)
+ *   - column types, required fields, enums, length / range limits
+ *   - foreign keys (`ref`) with ON DELETE behaviour: CASCADE | SET NULL | RESTRICT
+ *
+ * The same schema is documented as SQL in docs/schema.sql and as an
+ * ER diagram in docs/DATABASE.md.
+ */
+(function (UT) {
+  'use strict';
+
+  const ts = { type: 'datetime' };
+
+  UT.SCHEMA = {
+    version: 1,
+    storagePrefix: 'unitask.v1.',
+
+    tables: {
+      /* Subjects the student is enrolled in — the hub that links everything together */
+      courses: {
+        label: 'Courses',
+        idPrefix: 'crs',
+        fields: {
+          id:        { type: 'id' },
+          name:      { type: 'string', required: true, max: 80 },
+          code:      { type: 'string', max: 20 },
+          teacher:   { type: 'string', max: 80 },
+          color:     { type: 'color', required: true, default: '#2a78d6' },
+          credits:   { type: 'int', min: 0, max: 30, default: 5 },
+          createdAt: ts,
+          updatedAt: ts
+        }
+      },
+
+      /* Assignments, exams, projects … */
+      tasks: {
+        label: 'Tasks',
+        idPrefix: 'tsk',
+        fields: {
+          id:          { type: 'id' },
+          courseId:    { type: 'ref', ref: 'courses', onDelete: 'SET NULL' },
+          title:       { type: 'string', required: true, max: 120 },
+          description: { type: 'string', max: 2000 },
+          type:        { type: 'enum', values: ['assignment', 'exam', 'project', 'reading', 'other'], default: 'assignment' },
+          priority:    { type: 'enum', values: ['low', 'medium', 'high'], default: 'medium' },
+          status:      { type: 'enum', values: ['todo', 'in_progress', 'done'], default: 'todo' },
+          dueDate:     { type: 'date' },
+          dueTime:     { type: 'time' },
+          estimatedHours: { type: 'number', min: 0, max: 500 },
+          completedAt: ts,
+          createdAt:   ts,
+          updatedAt:   ts
+        }
+      },
+
+      /* Checklist items inside a task (1 task → N subtasks) */
+      subtasks: {
+        label: 'Subtasks',
+        idPrefix: 'sub',
+        fields: {
+          id:        { type: 'id' },
+          taskId:    { type: 'ref', ref: 'tasks', required: true, onDelete: 'CASCADE' },
+          title:     { type: 'string', required: true, max: 120 },
+          done:      { type: 'bool', default: false },
+          position:  { type: 'int', min: 0, default: 0 },
+          createdAt: ts,
+          updatedAt: ts
+        }
+      },
+
+      /* Weekly timetable — a class always belongs to a course */
+      classes: {
+        label: 'Schedule (classes)',
+        idPrefix: 'cls',
+        fields: {
+          id:        { type: 'id' },
+          courseId:  { type: 'ref', ref: 'courses', required: true, onDelete: 'CASCADE' },
+          day:       { type: 'int', required: true, min: 1, max: 7 }, // 1 = Monday … 7 = Sunday
+          startTime: { type: 'time', required: true },
+          endTime:   { type: 'time', required: true },
+          kind:      { type: 'enum', values: ['lecture', 'practice', 'lab', 'seminar'], default: 'lecture' },
+          location:  { type: 'string', max: 60 },
+          createdAt: ts,
+          updatedAt: ts
+        },
+        /* table-level CHECK constraint */
+        check(row) {
+          if (row.startTime && row.endTime && row.endTime <= row.startTime) {
+            return { endTime: 'End time must be after start time' };
+          }
+          return null;
+        }
+      },
+
+      /* Study notes — may be attached to a course and/or a specific task */
+      notes: {
+        label: 'Notes',
+        idPrefix: 'nte',
+        fields: {
+          id:        { type: 'id' },
+          courseId:  { type: 'ref', ref: 'courses', onDelete: 'SET NULL' },
+          taskId:    { type: 'ref', ref: 'tasks', onDelete: 'SET NULL' },
+          title:     { type: 'string', required: true, max: 120 },
+          content:   { type: 'string', max: 20000 },
+          tags:      { type: 'tags', default: [] },
+          pinned:    { type: 'bool', default: false },
+          createdAt: ts,
+          updatedAt: ts
+        }
+      },
+
+      /* Audit log written automatically by the DB layer (feeds "Recent activity").
+       * entityId is a polymorphic reference: no FK, the row survives deletion. */
+      activity: {
+        label: 'Activity log',
+        idPrefix: 'act',
+        system: true,
+        maxRows: 200,
+        fields: {
+          id:       { type: 'id' },
+          entity:   { type: 'enum', values: ['courses', 'tasks', 'subtasks', 'classes', 'notes'], required: true },
+          entityId: { type: 'string', required: true },
+          action:   { type: 'enum', values: ['created', 'updated', 'completed', 'reopened', 'deleted'], required: true },
+          label:    { type: 'string', max: 140 },
+          createdAt: ts
+        }
+      }
+    },
+
+    /* Key/value singleton (one row) */
+    settings: {
+      key: 'settings',
+      defaults: {
+        userName: 'Student',
+        university: '',
+        theme: 'system',           // light | dark | system
+        weekStartsOn: 1,           // 1 = Monday
+        showWeekend: false,
+        dayStart: '08:00',
+        dayEnd: '19:00',
+        upcomingDays: 7,           // dashboard horizon
+        confirmDelete: true
+      }
+    }
+  };
+
+  /** Fields in other tables that point to `table` (used for cascades & docs). */
+  UT.SCHEMA.referencesTo = function (table) {
+    const out = [];
+    Object.entries(UT.SCHEMA.tables).forEach(([name, def]) => {
+      Object.entries(def.fields).forEach(([field, f]) => {
+        if (f.type === 'ref' && f.ref === table) out.push({ table: name, field, onDelete: f.onDelete || 'RESTRICT' });
+      });
+    });
+    return out;
+  };
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/db.js */
+/* UniTask — db.js
+ * A tiny relational data layer over window.localStorage.
+ *
+ *   UI page ──calls──▶ DB.insert / update / remove / all / get
+ *                         │  1. normalize + validate against SCHEMA
+ *                         │  2. check foreign keys exist
+ *                         │  3. apply ON DELETE rules (CASCADE / SET NULL)
+ *                         │  4. write JSON to localStorage ("unitask.v1.<table>")
+ *                         │  5. append a row to the activity log
+ *                         ▼  6. emit a change event → the current page re-renders
+ *
+ * Reads are served from an in-memory cache that is loaded once at start-up,
+ * so the UI never parses JSON on every render.
+ */
+(function (UT) {
+  'use strict';
+
+  const S = UT.SCHEMA;
+  const U = UT.U;
+  const KEY = (name) => S.storagePrefix + name;
+  /* Parent tables first: the order used for import and for docs */
+  const TABLE_ORDER = ['courses', 'tasks', 'subtasks', 'classes', 'notes', 'activity'];
+
+  /* ---------- storage driver: localStorage, or memory if it is blocked ---------- */
+  const memory = new Map();
+  let ls = null;
+  try {
+    ls = globalThis.localStorage;
+    ls.setItem('__unitask_probe', '1');
+    ls.removeItem('__unitask_probe');
+  } catch (e) {
+    ls = null; // private mode / sandbox: keep working, just without persistence
+  }
+  const store = {
+    persistent: !!ls,
+    get: (k) => (ls ? ls.getItem(k) : (memory.has(k) ? memory.get(k) : null)),
+    set: (k, v) => {
+      if (!ls) { memory.set(k, v); return; }
+      try { ls.setItem(k, v); } catch (e) {
+        throw new Error('Browser storage is full. Export a backup and delete old items.');
+      }
+    },
+    remove: (k) => (ls ? ls.removeItem(k) : memory.delete(k)),
+    keys: () => (ls ? Object.keys(ls) : [...memory.keys()]).filter((k) => k.startsWith(S.storagePrefix))
+  };
+
+  /* ---------- errors ---------- */
+  class ValidationError extends Error {
+    constructor(errors) {
+      super(Object.values(errors)[0] || 'Invalid data');
+      this.name = 'ValidationError';
+      this.errors = errors; // { field: message }
+    }
+  }
+
+  /* ---------- state ---------- */
+  const cache = { tables: {}, settings: null, meta: null };
+  const listeners = new Set();
+  let silent = 0; // >0 while seeding/importing: no activity rows, no events
+
+  function readJSON(key, fallback) {
+    try {
+      const raw = store.get(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (e) {
+      console.warn('[UniTask] corrupted value in', key, e);
+      return fallback;
+    }
+  }
+  function persist(table) { store.set(KEY(table), JSON.stringify(cache.tables[table])); }
+  function persistAll() {
+    TABLE_ORDER.forEach(persist);
+    store.set(KEY(S.settings.key), JSON.stringify(cache.settings));
+    store.set(KEY('meta'), JSON.stringify(cache.meta));
+  }
+  function emit(evt) {
+    if (silent) return;
+    listeners.forEach((fn) => { try { fn(evt); } catch (e) { console.error(e); } });
+  }
+  function def(table) {
+    const d = S.tables[table];
+    if (!d) throw new Error(`Unknown table "${table}"`);
+    return d;
+  }
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  /* ---------- validation & normalisation ---------- */
+  const RX = {
+    date: /^\d{4}-\d{2}-\d{2}$/,
+    time: /^([01]\d|2[0-3]):[0-5]\d$/,
+    color: /^#[0-9a-fA-F]{6}$/
+  };
+  const isEmpty = (v) => v === undefined || v === null || v === '';
+
+  /** Build a clean row from raw input. Unknown keys are dropped. Throws ValidationError. */
+  function normalize(table, input, existing) {
+    const d = def(table);
+    const row = {};
+    const errors = {};
+
+    Object.entries(d.fields).forEach(([name, f]) => {
+      if (f.type === 'id') return;
+      let v = Object.prototype.hasOwnProperty.call(input, name) ? input[name]
+        : existing ? existing[name]
+        : (f.default !== undefined ? clone(f.default) : undefined);
+
+      if (f.type === 'string' && typeof v === 'string') v = v.trim();
+      if (isEmpty(v)) {
+        if (f.required) errors[name] = `${U.capitalize(name)} is required`;
+        row[name] = f.type === 'string' ? '' : f.type === 'tags' ? [] : f.type === 'bool' ? false : null;
+        return;
+      }
+
+      switch (f.type) {
+        case 'string':
+          v = String(v);
+          if (f.max && v.length > f.max) errors[name] = `${U.capitalize(name)} must be at most ${f.max} characters`;
+          break;
+        case 'int':
+        case 'number':
+          v = Number(v);
+          if (!Number.isFinite(v) || (f.type === 'int' && !Number.isInteger(v))) errors[name] = `${U.capitalize(name)} must be a ${f.type === 'int' ? 'whole ' : ''}number`;
+          else if (f.min !== undefined && v < f.min) errors[name] = `${U.capitalize(name)} must be ≥ ${f.min}`;
+          else if (f.max !== undefined && v > f.max) errors[name] = `${U.capitalize(name)} must be ≤ ${f.max}`;
+          break;
+        case 'bool':
+          v = v === true || v === 'true' || v === 'on' || v === 1 || v === '1';
+          break;
+        case 'enum':
+          if (!f.values.includes(v)) errors[name] = `${U.capitalize(name)} must be one of: ${f.values.join(', ')}`;
+          break;
+        case 'date':
+        case 'time':
+        case 'color':
+          v = String(v);
+          if (!RX[f.type].test(v)) errors[name] = `${U.capitalize(name)} has an invalid ${f.type} format`;
+          if (f.type === 'color') v = v.toLowerCase();
+          break;
+        case 'datetime':
+          if (Number.isNaN(new Date(v).getTime())) errors[name] = `${U.capitalize(name)} is not a valid timestamp`;
+          else v = new Date(v).toISOString();
+          break;
+        case 'tags': {
+          const list = Array.isArray(v) ? v : String(v).split(',');
+          v = [...new Set(list.map((t) => String(t).trim().toLowerCase().replace(/^#/, '')).filter(Boolean))].slice(0, 12);
+          break;
+        }
+        case 'ref':
+          v = String(v);
+          if (!cache.tables[f.ref].some((r) => r.id === v)) {
+            errors[name] = `Linked ${f.ref.replace(/s$/, '')} does not exist (foreign key ${table}.${name} → ${f.ref}.id)`;
+          }
+          break;
+        default:
+          break;
+      }
+      row[name] = v;
+    });
+
+    if (d.check) Object.assign(errors, d.check(row) || {});
+    if (Object.keys(errors).length) throw new ValidationError(errors);
+    return row;
+  }
+
+  /* ---------- activity log ---------- */
+  function labelOf(table, row) {
+    if (table === 'classes') {
+      const c = cache.tables.courses.find((x) => x.id === row.courseId);
+      return `${c ? c.name : 'Class'} · ${U.DAY_SHORT[row.day - 1]} ${row.startTime}`;
+    }
+    return row.title || row.name || row.id;
+  }
+  function log(table, row, action) {
+    if (silent || table === 'activity' || table === 'subtasks') return;
+    const t = cache.tables.activity;
+    t.unshift({
+      id: U.uid(def('activity').idPrefix),
+      entity: table, entityId: row.id, action,
+      label: U.excerpt(labelOf(table, row), 140),
+      createdAt: new Date().toISOString()
+    });
+    if (t.length > def('activity').maxRows) t.length = def('activity').maxRows;
+    persist('activity');
+  }
+
+  /* ---------- delete planning (referential integrity) ---------- */
+  /** Walks foreign keys and returns what a delete would do, without changing anything. */
+  function planDelete(table, id, plan = { delete: [], setNull: [] }) {
+    if (plan.delete.some((p) => p.table === table && p.id === id)) return plan;
+    plan.delete.push({ table, id });
+    S.referencesTo(table).forEach((ref) => {
+      cache.tables[ref.table].filter((r) => r[ref.field] === id).forEach((child) => {
+        if (ref.onDelete === 'CASCADE') planDelete(ref.table, child.id, plan);
+        else if (ref.onDelete === 'SET NULL') plan.setNull.push({ table: ref.table, id: child.id, field: ref.field });
+        else throw new Error(`Cannot delete: ${ref.table} still reference this ${table.replace(/s$/, '')}`);
+      });
+    });
+    return plan;
+  }
+  function summarizePlan(plan) {
+    const count = (list) => list.reduce((acc, p) => { acc[p.table] = (acc[p.table] || 0) + 1; return acc; }, {});
+    const del = count(plan.delete.slice(1));
+    const nul = count(plan.setNull.filter((p) => !plan.delete.some((d) => d.table === p.table && d.id === p.id)));
+    return { cascade: del, unlink: nul };
+  }
+
+  /* ---------- public API ---------- */
+  const DB = {
+    ValidationError,
+    TABLE_ORDER,
+    get persistent() { return store.persistent; },
+
+    /** Load everything from storage. Seeds demo data on the very first run. */
+    init(options = {}) {
+      cache.meta = readJSON(KEY('meta'), null);
+      TABLE_ORDER.forEach((t) => {
+        const rows = readJSON(KEY(t), []);
+        cache.tables[t] = Array.isArray(rows) ? rows : [];
+      });
+      cache.settings = Object.assign({}, S.settings.defaults, readJSON(KEY(S.settings.key), {}));
+
+      const firstRun = !cache.meta;
+      if (firstRun) {
+        cache.meta = { schemaVersion: S.version, createdAt: new Date().toISOString() };
+        if (options.seed !== false && UT.seedDemo) DB.withoutEvents(() => UT.seedDemo(DB));
+        persistAll();
+      } else if (cache.meta.schemaVersion < S.version) {
+        DB.migrate(cache.meta.schemaVersion);
+      }
+      return { firstRun };
+    },
+
+    /** Placeholder for future schema upgrades (v1 → v2 …). */
+    migrate(fromVersion) {
+      // Example: if (fromVersion < 2) cache.tables.tasks.forEach(t => { t.newField = null; });
+      cache.meta.schemaVersion = S.version;
+      cache.meta.migratedFrom = fromVersion;
+      persistAll();
+    },
+
+    withoutEvents(fn) {
+      silent++;
+      try { return fn(); } finally { silent--; }
+    },
+
+    subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+
+    /* --- read --- */
+    all(table, { where, sort } = {}) {
+      let rows = def(table) && cache.tables[table].slice();
+      if (where) rows = rows.filter(where);
+      if (sort) rows.sort(sort);
+      return rows;
+    },
+    get(table, id) {
+      if (!id) return null;
+      return cache.tables[table].find((r) => r.id === id) || null;
+    },
+    count(table, where) { return where ? cache.tables[table].filter(where).length : cache.tables[table].length; },
+    /** id → row map for fast "joins" while rendering lists */
+    index(table) {
+      const m = new Map();
+      cache.tables[table].forEach((r) => m.set(r.id, r));
+      return m;
+    },
+
+    /* --- write --- */
+    insert(table, data, opts = {}) {
+      const row = normalize(table, data, null);
+      const now = new Date().toISOString();
+      const id = opts.keepId && data.id ? String(data.id) : U.uid(def(table).idPrefix);
+      if (cache.tables[table].some((r) => r.id === id)) throw new ValidationError({ id: `Duplicate primary key ${id}` });
+      const full = Object.assign({ id }, row, {
+        createdAt: row.createdAt || now,
+        updatedAt: row.updatedAt || row.createdAt || now
+      });
+      if (table === 'tasks') full.completedAt = full.status === 'done' ? (row.completedAt || now) : null;
+      cache.tables[table].push(full);
+      persist(table);
+      log(table, full, 'created');
+      emit({ table, action: 'insert', id });
+      return clone(full);
+    },
+
+    update(table, id, patch) {
+      const list = cache.tables[table];
+      const i = list.findIndex((r) => r.id === id);
+      if (i < 0) throw new Error(`${table}: row ${id} not found`);
+      const before = list[i];
+      const row = normalize(table, patch, before);
+      const after = Object.assign({}, before, row, { id, createdAt: before.createdAt, updatedAt: new Date().toISOString() });
+
+      let action = 'updated';
+      if (table === 'tasks' && before.status !== after.status) {
+        if (after.status === 'done') { after.completedAt = patch.completedAt || new Date().toISOString(); action = 'completed'; }
+        else if (before.status === 'done') { after.completedAt = null; action = 'reopened'; }
+      }
+      list[i] = after;
+      persist(table);
+      log(table, after, action);
+      emit({ table, action: 'update', id });
+      return clone(after);
+    },
+
+    /** Describe the side effects of deleting a row (for confirmation dialogs). */
+    previewDelete(table, id) { return summarizePlan(planDelete(table, id)); },
+
+    /** Delete a row and apply ON DELETE rules to dependent rows. */
+    remove(table, id) {
+      const target = DB.get(table, id);
+      if (!target) return null;
+      const plan = planDelete(table, id);
+      const touched = new Set();
+      plan.setNull.forEach((p) => {
+        const r = cache.tables[p.table].find((x) => x.id === p.id);
+        if (r) { r[p.field] = null; r.updatedAt = new Date().toISOString(); touched.add(p.table); }
+      });
+      plan.delete.forEach((p) => {
+        cache.tables[p.table] = cache.tables[p.table].filter((r) => r.id !== p.id);
+        touched.add(p.table);
+      });
+      touched.forEach(persist);
+      log(table, target, 'deleted');
+      emit({ table, action: 'delete', id });
+      return summarizePlan(plan);
+    },
+
+    /* --- settings (singleton row) --- */
+    settings() { return Object.assign({}, cache.settings); },
+    saveSettings(patch) {
+      cache.settings = Object.assign({}, cache.settings, patch);
+      store.set(KEY(S.settings.key), JSON.stringify(cache.settings));
+      emit({ table: 'settings', action: 'update' });
+      return DB.settings();
+    },
+
+    /* --- maintenance --- */
+    /** Finds rows whose foreign keys point to rows that no longer exist. */
+    integrityCheck() {
+      const problems = [];
+      Object.entries(S.tables).forEach(([table, d]) => {
+        Object.entries(d.fields).filter(([, f]) => f.type === 'ref').forEach(([field, f]) => {
+          const ids = new Set(cache.tables[f.ref].map((r) => r.id));
+          cache.tables[table].forEach((r) => {
+            if (r[field] && !ids.has(r[field])) problems.push({ table, id: r.id, field, missing: r[field] });
+          });
+        });
+      });
+      return problems;
+    },
+
+    storageInfo() {
+      const tables = TABLE_ORDER.map((t) => ({
+        table: t,
+        label: def(t).label,
+        key: KEY(t),
+        rows: cache.tables[t].length,
+        bytes: (store.get(KEY(t)) || '').length * 2 // UTF-16
+      }));
+      const total = store.keys().reduce((sum, k) => sum + ((store.get(k) || '').length + k.length) * 2, 0);
+      return { tables, totalBytes: total, persistent: store.persistent, meta: Object.assign({}, cache.meta) };
+    },
+
+    exportData() {
+      const tables = {};
+      TABLE_ORDER.forEach((t) => { tables[t] = clone(cache.tables[t]); });
+      return {
+        app: 'UniTask',
+        schemaVersion: S.version,
+        exportedAt: new Date().toISOString(),
+        settings: DB.settings(),
+        tables
+      };
+    },
+
+    /** Replace all data with a backup. All-or-nothing: on any error nothing changes. */
+    importData(data) {
+      if (!data || data.app !== 'UniTask' || typeof data.tables !== 'object') {
+        throw new Error('This file is not a UniTask backup');
+      }
+      const snapshot = clone({ tables: cache.tables, settings: cache.settings });
+      try {
+        DB.withoutEvents(() => {
+          TABLE_ORDER.forEach((t) => { cache.tables[t] = []; });
+          TABLE_ORDER.forEach((t) => {
+            (data.tables[t] || []).forEach((row) => {
+              const created = DB.insert(t, row, { keepId: true });
+              if (t === 'tasks' && row.completedAt) {
+                cache.tables.tasks.find((r) => r.id === created.id).completedAt = row.completedAt;
+              }
+            });
+          });
+          cache.settings = Object.assign({}, S.settings.defaults, data.settings || {});
+        });
+      } catch (e) {
+        cache.tables = snapshot.tables;
+        cache.settings = snapshot.settings;
+        throw e;
+      }
+      persistAll();
+      emit({ table: '*', action: 'import' });
+    },
+
+    /** Wipe everything. withDemo = true re-creates the sample data. */
+    reset({ withDemo = true } = {}) {
+      store.keys().forEach((k) => store.remove(k));
+      TABLE_ORDER.forEach((t) => { cache.tables[t] = []; });
+      const keepTheme = cache.settings && cache.settings.theme;
+      cache.settings = Object.assign({}, S.settings.defaults, keepTheme ? { theme: keepTheme } : {});
+      cache.meta = { schemaVersion: S.version, createdAt: new Date().toISOString() };
+      if (withDemo && UT.seedDemo) DB.withoutEvents(() => UT.seedDemo(DB));
+      persistAll();
+      emit({ table: '*', action: 'reset' });
+    }
+  };
+
+  UT.DB = DB;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/seed.js */
+/* UniTask — seed.js
+ * Demo data so the prototype looks alive on first launch.
+ * All dates are relative to "today", so the demo never goes stale.
+ */
+(function (UT) {
+  'use strict';
+
+  UT.seedDemo = function (DB) {
+    const U = UT.U;
+    const d = (n) => U.isoPlusDays(n);
+    const ago = (days, hour = 18) => {
+      const t = U.addDays(U.today(), -days);
+      t.setHours(hour, 15, 0, 0);
+      // never in the future (e.g. "today at 18:00" when it is still morning)
+      return new Date(Math.min(t.getTime(), Date.now() - (days + 1) * 37 * 60000)).toISOString();
+    };
+
+    /* 1. Courses (parent table) — colours follow a fixed, colour-blind-checked order */
+    const c = {};
+    [
+      ['web', { name: 'Web Development', code: 'CSE 214', teacher: 'Dr. A. Seitkali', color: '#2a78d6', credits: 6 }],
+      ['db', { name: 'Database Systems', code: 'CSE 230', teacher: 'Prof. M. Ospanova', color: '#eb6834', credits: 5 }],
+      ['calc', { name: 'Calculus II', code: 'MATH 152', teacher: 'Dr. B. Akhmetov', color: '#1baf7a', credits: 5 }],
+      ['eng', { name: 'Academic English', code: 'ENG 110', teacher: 'Ms. L. Carter', color: '#eda100', credits: 3 }],
+      ['algo', { name: 'Algorithms & Data Structures', code: 'CSE 220', teacher: 'Dr. N. Bekov', color: '#6250d6', credits: 6 }]
+    ].forEach(([k, row]) => { c[k] = DB.insert('courses', row).id; });
+
+    /* 2. Weekly timetable (each class → one course) */
+    [
+      [c.web, 1, '09:00', '10:30', 'lecture', 'Room 301'],
+      [c.calc, 1, '11:00', '12:30', 'lecture', 'Main hall B'],
+      [c.eng, 1, '14:00', '15:20', 'seminar', 'Room 112'],
+      [c.db, 2, '09:00', '10:30', 'lecture', 'Room 205'],
+      [c.algo, 2, '13:00', '14:30', 'lecture', 'Main hall A'],
+      [c.web, 3, '10:00', '11:50', 'lab', 'Lab 4'],
+      [c.calc, 3, '13:00', '14:20', 'practice', 'Room 214'],
+      [c.db, 4, '11:00', '12:50', 'lab', 'Lab 2'],
+      [c.algo, 4, '15:00', '16:30', 'practice', 'Room 318'],
+      [c.eng, 5, '09:30', '10:50', 'seminar', 'Room 112'],
+      [c.algo, 5, '11:00', '12:30', 'lab', 'Lab 4']
+    ].forEach(([courseId, day, startTime, endTime, kind, location]) => {
+      DB.insert('classes', { courseId, day, startTime, endTime, kind, location });
+    });
+
+    /* 3. Tasks (+ subtasks). completedAt is spread over the last two weeks for the Progress charts */
+    const t = (row, subs) => {
+      const task = DB.insert('tasks', row);
+      (subs || []).forEach(([title, done], i) => DB.insert('subtasks', { taskId: task.id, title, done, position: i }));
+      return task.id;
+    };
+    const tasks = {};
+    tasks.landing = t({ courseId: c.web, title: 'Responsive landing page (Lab 5)', type: 'assignment', priority: 'high', status: 'in_progress', dueDate: d(2), dueTime: '23:59', estimatedHours: 6,
+      description: 'Build a responsive landing page with Flexbox/Grid. Must pass the HTML validator and work on mobile.' },
+    [['Wireframe in Figma', true], ['HTML structure', true], ['CSS grid layout', false], ['Mobile breakpoints', false], ['Deploy to GitHub Pages', false]]);
+    tasks.erd = t({ courseId: c.db, title: 'ER diagram for library system', type: 'assignment', priority: 'high', status: 'todo', dueDate: d(1), dueTime: '18:00', estimatedHours: 3,
+      description: 'Entities, relationships, cardinalities. Normalise to 3NF and submit as PDF.' },
+    [['List entities & attributes', true], ['Draw relationships', false], ['Normalise to 3NF', false]]);
+    t({ courseId: c.calc, title: 'Problem set 7: series & convergence', type: 'assignment', priority: 'medium', status: 'todo', dueDate: d(4), estimatedHours: 4 });
+    t({ courseId: c.eng, title: 'Essay draft: "Technology in education"', type: 'assignment', priority: 'medium', status: 'todo', dueDate: d(6), dueTime: '12:00', estimatedHours: 3,
+      description: '800–1000 words, APA citations, at least 4 academic sources.' });
+    t({ courseId: c.algo, title: 'Midterm exam', type: 'exam', priority: 'high', status: 'todo', dueDate: d(9), dueTime: '10:00', estimatedHours: 10,
+      description: 'Topics: sorting, binary search, recursion, Big-O, stacks/queues, hash tables.' },
+    [['Review sorting algorithms', false], ['Solve past papers', false], ['Big-O cheat sheet', false]]);
+    t({ courseId: c.db, title: 'SQL quiz 3 (JOINs)', type: 'exam', priority: 'medium', status: 'todo', dueDate: d(-1), dueTime: '09:00', estimatedHours: 1 });
+    t({ courseId: c.algo, title: 'Implement a hash map', type: 'project', priority: 'medium', status: 'in_progress', dueDate: d(12), estimatedHours: 5 },
+      [['Open addressing version', true], ['Unit tests', false]]);
+    t({ courseId: c.eng, title: 'Read chapter 4: academic vocabulary', type: 'reading', priority: 'low', status: 'todo', dueDate: d(3), estimatedHours: 1 });
+    t({ courseId: null, title: 'Renew library card', type: 'other', priority: 'low', status: 'todo', dueDate: d(5) });
+    t({ courseId: c.web, title: 'Group project: proposal slides', type: 'project', priority: 'high', status: 'todo', dueDate: d(-2), estimatedHours: 2 });
+
+    // completed work
+    [
+      [c.web, 'Lab 4: CSS Flexbox', 'assignment', 'medium', -12, 13],
+      [c.calc, 'Problem set 6', 'assignment', 'medium', -9, 10],
+      [c.db, 'Normalisation worksheet', 'assignment', 'low', -8, 10],
+      [c.eng, 'Vocabulary test 2', 'exam', 'medium', -6, 8],
+      [c.algo, 'Linked list lab', 'assignment', 'high', -5, 7],
+      [c.web, 'JavaScript DOM quiz', 'exam', 'medium', -4, 4],
+      [c.calc, 'Integration techniques summary', 'reading', 'low', -3, 4],
+      [c.algo, 'Recursion exercises', 'assignment', 'medium', -4, 3],
+      [c.db, 'Install PostgreSQL & run seed script', 'other', 'low', 0, 1],
+      [c.algo, 'Stack & queue worksheet', 'assignment', 'medium', 0, 1],
+      [c.eng, 'Peer review of essay outline', 'assignment', 'low', 1, 1],
+      [c.web, 'Git & GitHub basics tutorial', 'reading', 'low', -1, 0]
+    ].forEach(([courseId, title, type, priority, due, doneDaysAgo]) => {
+      t({ courseId, title, type, priority, status: 'done', dueDate: d(due), completedAt: ago(doneDaysAgo, 15 + (doneDaysAgo % 5)) });
+    });
+
+    /* 4. Notes — some linked to a course, one linked to a task */
+    [
+      { courseId: c.db, taskId: tasks.erd, pinned: true, title: 'ER diagram checklist', tags: ['erd', 'exam'],
+        content: '1. Every entity has a primary key.\n2. 1:N → foreign key on the "many" side.\n3. M:N → junction table with a composite key.\n4. No repeating groups (1NF), no partial dependencies (2NF), no transitive dependencies (3NF).' },
+      { courseId: c.web, pinned: true, title: 'CSS Grid quick reference', tags: ['css', 'layout'],
+        content: 'grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));\ngap: 16px;\nplace-items: center;\n\nUse Grid for 2-D layouts, Flexbox for 1-D rows/columns.' },
+      { courseId: c.algo, title: 'Big-O of common operations', tags: ['exam', 'complexity'],
+        content: 'Array access O(1)\nBinary search O(log n)\nMerge sort O(n log n)\nHash map get/put O(1) average, O(n) worst\nBFS / DFS O(V + E)' },
+      { courseId: c.calc, title: 'Convergence tests', tags: ['series'],
+        content: 'Divergence test → if lim aₙ ≠ 0 the series diverges.\nRatio test: L < 1 converges, L > 1 diverges, L = 1 inconclusive.\nIntegral test for positive decreasing functions.' },
+      { courseId: c.eng, title: 'Essay structure', tags: ['writing'],
+        content: 'Introduction (hook + thesis)\n3 body paragraphs: topic sentence → evidence → analysis\nConclusion: restate thesis, no new ideas.' },
+      { courseId: null, title: 'Semester goals', tags: ['personal'],
+        content: 'GPA ≥ 3.5\nSubmit every assignment at least one day early\nGo to the gym 3× per week' }
+    ].forEach((n, i) => DB.insert('notes', Object.assign({ createdAt: ago(i * 2 + 1, 20), updatedAt: ago(i, 20 - i) }, n)));
+
+    /* 5. A bit of history for the "Recent activity" feed */
+    DB.all('tasks', { where: (x) => x.status === 'done' }).forEach((x) => {
+      DB.insert('activity', { entity: 'tasks', entityId: x.id, action: 'completed', label: x.title, createdAt: x.completedAt });
+    });
+    DB.all('notes').slice(0, 2).forEach((n, i) => {
+      DB.insert('activity', { entity: 'notes', entityId: n.id, action: 'created', label: n.title, createdAt: ago(i + 1, 21) });
+    });
+
+    DB.saveSettings({ userName: 'Student', university: '' });
+  };
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/ui.js */
+/* UniTask — ui.js
+ * Reusable UI pieces: modal dialogs, confirm, toasts, form field builders,
+ * badges and empty states. Pages build HTML strings with these helpers.
+ */
+(function (UT) {
+  'use strict';
+
+  const U = UT.U;
+  const esc = U.esc;
+  const $ = (sel, root = document) => root.querySelector(sel);
+
+  const icon = (name, cls = '') => `<svg class="icon ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+  /* ---------- toasts ---------- */
+  function toast(message, type = 'info') {
+    const box = $('#toasts');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.innerHTML = `${icon(type === 'error' ? 'alert' : 'check')}<span>${esc(message)}</span>`;
+    box.appendChild(el);
+    setTimeout(() => el.classList.add('out'), 2600);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  /* ---------- modal ---------- */
+  let lastFocus = null;
+  function closeModal() {
+    const root = $('#modal-root');
+    root.hidden = true;
+    root.innerHTML = '';
+    document.body.classList.remove('modal-open');
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+
+  /**
+   * openModal({ title, body, submitLabel, onSubmit(values, form) , onOpen(dialog), wide, footerExtra })
+   * onSubmit may throw a DB.ValidationError: messages are shown next to the fields.
+   */
+  function openModal(opts) {
+    lastFocus = document.activeElement;
+    const root = $('#modal-root');
+    root.innerHTML = `
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal ${opts.wide ? 'modal-wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <form class="modal-form" novalidate>
+          <header class="modal-head">
+            <h2 id="modal-title">${esc(opts.title)}</h2>
+            <button type="button" class="icon-btn" data-close aria-label="Close">${icon('x')}</button>
+          </header>
+          <div class="modal-body">${opts.body}</div>
+          <p class="form-error" hidden></p>
+          <footer class="modal-foot">
+            ${opts.footerExtra || ''}
+            <span class="spacer"></span>
+            <button type="button" class="btn btn-ghost" data-close>${esc(opts.cancelLabel || 'Cancel')}</button>
+            ${opts.onSubmit ? `<button type="submit" class="btn ${opts.danger ? 'btn-danger' : 'btn-primary'}">${esc(opts.submitLabel || 'Save')}</button>` : ''}
+          </footer>
+        </form>
+      </div>`;
+    root.hidden = false;
+    document.body.classList.add('modal-open');
+    const dialog = $('.modal', root);
+    const form = $('form', root);
+
+    root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closeModal));
+    root.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      form.querySelectorAll('.field-error').forEach((x) => x.remove());
+      form.querySelectorAll('.invalid').forEach((x) => x.classList.remove('invalid'));
+      const err = $('.form-error', form);
+      err.hidden = true;
+      try {
+        const keepOpen = opts.onSubmit(readForm(form), form);
+        if (keepOpen !== true) closeModal();
+      } catch (ex) {
+        if (ex && ex.errors) {
+          Object.entries(ex.errors).forEach(([field, msg]) => {
+            const input = form.querySelector(`[name="${field}"]`);
+            if (input) {
+              input.classList.add('invalid');
+              input.closest('.field').insertAdjacentHTML('beforeend', `<small class="field-error">${esc(msg)}</small>`);
+            } else { err.textContent = msg; err.hidden = false; }
+          });
+          const first = form.querySelector('.invalid');
+          if (first) first.focus();
+        } else {
+          err.textContent = ex.message || String(ex);
+          err.hidden = false;
+        }
+      }
+    });
+
+    if (opts.onOpen) opts.onOpen(dialog, form);
+    const first = dialog.querySelector('[autofocus], input:not([type=hidden]), textarea, select');
+    if (first) setTimeout(() => first.focus(), 30);
+    return dialog;
+  }
+
+  /** Collect form values: checkboxes → boolean, everything else → string. */
+  function readForm(form) {
+    const out = {};
+    form.querySelectorAll('[name]').forEach((el) => {
+      if (el.dataset.ignore !== undefined) return;
+      if (el.type === 'checkbox') out[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) out[el.name] = el.value; }
+      else out[el.name] = el.value;
+    });
+    return out;
+  }
+
+  function confirmDialog({ title = 'Are you sure?', message, confirmLabel = 'Delete', danger = true }) {
+    return new Promise((resolve) => {
+      let answered = false;
+      openModal({
+        title,
+        body: `<p class="confirm-text">${message}</p>`,
+        submitLabel: confirmLabel,
+        danger,
+        onSubmit: () => { answered = true; resolve(true); }
+      });
+      const root = $('#modal-root');
+      const obs = new MutationObserver(() => {
+        if (root.hidden) { obs.disconnect(); if (!answered) resolve(false); }
+      });
+      obs.observe(root, { attributes: true, attributeFilter: ['hidden'] });
+    });
+  }
+
+  /* ---------- form field builders ---------- */
+  const F = {
+    text(name, label, value = '', attrs = '') {
+      return `<label class="field"><span>${esc(label)}</span><input type="text" name="${name}" value="${esc(value)}" ${attrs}></label>`;
+    },
+    textarea(name, label, value = '', attrs = '') {
+      return `<label class="field"><span>${esc(label)}</span><textarea name="${name}" ${attrs}>${esc(value)}</textarea></label>`;
+    },
+    input(type, name, label, value = '', attrs = '') {
+      return `<label class="field"><span>${esc(label)}</span><input type="${type}" name="${name}" value="${esc(value == null ? '' : value)}" ${attrs}></label>`;
+    },
+    select(name, label, options, value, attrs = '') {
+      const opts = options.map((o) => {
+        const [v, l] = Array.isArray(o) ? o : [o, U.capitalize(o)];
+        return `<option value="${esc(v)}" ${String(v) === String(value == null ? '' : value) ? 'selected' : ''}>${esc(l)}</option>`;
+      }).join('');
+      return `<label class="field"><span>${esc(label)}</span><select name="${name}" ${attrs}>${opts}</select></label>`;
+    },
+    checkbox(name, label, checked) {
+      return `<label class="check"><input type="checkbox" name="${name}" ${checked ? 'checked' : ''}><span>${esc(label)}</span></label>`;
+    },
+    courseOptions(includeNone = true, noneLabel = 'No course') {
+      const list = UT.DB.all('courses', { sort: (a, b) => a.name.localeCompare(b.name) }).map((c) => [c.id, c.name]);
+      return includeNone ? [['', noneLabel]].concat(list) : list;
+    }
+  };
+
+  /* ---------- small visual pieces ---------- */
+  const PRIORITY_LABEL = { high: 'High', medium: 'Medium', low: 'Low' };
+  const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', done: 'Done' };
+
+  function courseChip(course) {
+    if (!course) return '<span class="chip chip-muted">No course</span>';
+    return `<span class="chip"><i class="dot" style="background:${esc(course.color)}"></i>${esc(course.name)}</span>`;
+  }
+  function priorityBadge(p) {
+    return `<span class="prio prio-${p}" title="Priority: ${PRIORITY_LABEL[p]}">${icon('flag')}${PRIORITY_LABEL[p]}</span>`;
+  }
+  function statusBadge(s) { return `<span class="status status-${s}">${STATUS_LABEL[s]}</span>`; }
+  function dueBadge(task) {
+    if (!task.dueDate) return '<span class="due muted">No deadline</span>';
+    const n = U.daysUntil(task.dueDate);
+    const cls = task.status === 'done' ? 'due-done' : n < 0 ? 'due-overdue' : n <= 2 ? 'due-soon' : '';
+    const label = task.status === 'done' ? U.formatDate(task.dueDate) : U.relativeDue(task.dueDate);
+    return `<span class="due ${cls}" title="${esc(U.formatDate(task.dueDate, { weekday: true, year: true }))}${task.dueTime ? ' ' + task.dueTime : ''}">${icon(n < 0 && task.status !== 'done' ? 'alert' : 'clock')}${esc(label)}${task.dueTime && task.status !== 'done' && n >= 0 && n <= 1 ? ', ' + task.dueTime : ''}</span>`;
+  }
+  function empty(title, text, actionHtml = '') {
+    return `<div class="empty"><div class="empty-art">${icon('tasks')}</div><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p>${actionHtml}</div>`;
+  }
+  /** Human-readable summary of a delete plan from DB.previewDelete */
+  function describeDeletePlan(plan) {
+    const names = { tasks: 'task', subtasks: 'subtask', classes: 'class', notes: 'note', courses: 'course' };
+    const parts = [];
+    Object.entries(plan.cascade).forEach(([t, n]) => parts.push(`<li><b>${U.plural(n, names[t], t === 'classes' ? 'classes' : undefined)}</b> will also be deleted</li>`));
+    Object.entries(plan.unlink).forEach(([t, n]) => parts.push(`<li>${U.plural(n, names[t], t === 'classes' ? 'classes' : undefined)} will be kept but unlinked</li>`));
+    return parts.length ? `<ul class="plan">${parts.join('')}</ul>` : '';
+  }
+
+  UT.UI = {
+    $, icon, toast, openModal, closeModal, confirm: confirmDialog, readForm, F,
+    courseChip, priorityBadge, statusBadge, dueBadge, empty, describeDeletePlan,
+    PRIORITY_LABEL, STATUS_LABEL
+  };
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/dashboard.js */
+/* UniTask — pages/dashboard.js
+ * At-a-glance overview: key numbers, upcoming deadlines, today's classes,
+ * pinned notes, overall progress and recent activity.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+
+  function greeting() {
+    const h = new Date().getHours();
+    return h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  }
+
+  /** Classes for today; if none (e.g. weekend) the next day that has classes. */
+  function nextClassDay() {
+    const classes = DB.all('classes');
+    for (let i = 0; i < 7; i++) {
+      const date = U.addDays(U.today(), i);
+      const wd = U.isoWeekday(date);
+      const list = classes.filter((c) => c.day === wd).sort((a, b) => a.startTime.localeCompare(b.startTime));
+      if (list.length) return { date, offset: i, list };
+    }
+    return null;
+  }
+
+  function classesCard(courses) {
+    const next = nextClassDay();
+    if (!next) return `<div class="card"><h2 class="card-title">${UI.icon('calendar')}Classes</h2>${UI.empty('No classes yet', 'Add your timetable on the Schedule page.', '<a class="btn btn-ghost" href="#/schedule">Open schedule</a>')}</div>`;
+    const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const when = next.offset === 0 ? 'Today' : next.offset === 1 ? 'Tomorrow' : U.DAY_NAMES[U.isoWeekday(next.date) - 1];
+    return `
+      <div class="card">
+        <h2 class="card-title">${UI.icon('calendar')}Classes · ${when}<a class="card-link" href="#/schedule">Week view</a></h2>
+        <ol class="timeline">
+          ${next.list.map((cl) => {
+            const c = courses.get(cl.courseId);
+            const live = next.offset === 0 && U.timeToMin(cl.startTime) <= nowMin && nowMin < U.timeToMin(cl.endTime);
+            const past = next.offset === 0 && U.timeToMin(cl.endTime) <= nowMin;
+            return `<li class="${live ? 'live' : ''} ${past ? 'past' : ''}" style="--course:${esc(c ? c.color : '#888')}">
+              <span class="tl-time">${cl.startTime}<small>${cl.endTime}</small></span>
+              <span class="tl-body"><b>${esc(c ? c.name : 'Class')}</b>
+                <small class="muted">${U.capitalize(cl.kind)}${cl.location ? ' · ' + esc(cl.location) : ''}${live ? ' · <em class="now">now</em>' : ''}</small></span>
+            </li>`;
+          }).join('')}
+        </ol>
+      </div>`;
+  }
+
+  function progressCard() {
+    const all = DB.all('tasks');
+    const done = all.filter((t) => t.status === 'done').length;
+    const p = U.pct(done, all.length);
+    const r = 34;
+    const C = 2 * Math.PI * r;
+    return `
+      <div class="card progress-mini">
+        <h2 class="card-title">${UI.icon('chart')}Progress<a class="card-link" href="#/progress">Details</a></h2>
+        <div class="ring-row">
+          <svg class="ring" viewBox="0 0 84 84" role="img" aria-label="${p}% of tasks completed">
+            <circle cx="42" cy="42" r="${r}" class="ring-track"/>
+            <circle cx="42" cy="42" r="${r}" class="ring-value" stroke-dasharray="${(C * p) / 100} ${C}" transform="rotate(-90 42 42)"/>
+            <text x="42" y="47" text-anchor="middle">${p}%</text>
+          </svg>
+          <div>
+            <p><b>${done}</b> of <b>${all.length}</b> tasks completed</p>
+            <p class="muted small">${U.plural(DB.count('tasks', (t) => t.status === 'done' && t.completedAt && (Date.now() - new Date(t.completedAt)) < 7 * 864e5), 'task')} finished in the last 7 days</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function notesCard(courses) {
+    const pinned = DB.all('notes', { where: (n) => n.pinned, sort: (a, b) => b.updatedAt.localeCompare(a.updatedAt) }).slice(0, 3);
+    return `
+      <div class="card">
+        <h2 class="card-title">${UI.icon('star')}Pinned notes<a class="card-link" href="#/notes">All notes</a></h2>
+        ${pinned.length ? `<ul class="mini-notes">${pinned.map((n) => {
+          const c = courses.get(n.courseId);
+          return `<li><button type="button" data-note="${n.id}" style="--course:${esc(c ? c.color : 'var(--border-strong)')}">
+            <b>${esc(n.title)}</b><small class="muted">${esc(U.excerpt(n.content, 90))}</small></button></li>`;
+        }).join('')}</ul>` : '<p class="muted small">Pin important notes to see them here.</p>'}
+      </div>`;
+  }
+
+  function activityCard() {
+    const items = DB.all('activity', { sort: (a, b) => b.createdAt.localeCompare(a.createdAt) }).slice(0, 6);
+    const verb = { created: 'Added', updated: 'Edited', completed: 'Completed', reopened: 'Reopened', deleted: 'Deleted' };
+    const kind = { tasks: 'task', notes: 'note', classes: 'class', courses: 'course', subtasks: 'subtask' };
+    return `
+      <div class="card">
+        <h2 class="card-title">${UI.icon('activity')}Recent activity</h2>
+        ${items.length ? `<ul class="activity">${items.map((a) => `
+          <li class="act-${a.action}"><i></i><span>${verb[a.action]} ${kind[a.entity]} <b>${esc(a.label)}</b></span><small class="muted">${U.timeAgo(a.createdAt)}</small></li>`).join('')}</ul>`
+          : '<p class="muted small">Your changes will appear here.</p>'}
+      </div>`;
+  }
+
+  let root = null;
+  const page = {
+    title: 'Dashboard',
+    subtitle: () => U.formatDate(U.todayISO(), { weekday: true, year: true }),
+    actions: () => `<button class="btn btn-primary" id="dash-add">${UI.icon('plus')}<span>New task</span></button>`,
+
+    mount(view) {
+      root = view;
+      document.getElementById('dash-add').addEventListener('click', () => UT.openTaskEditor(null));
+      UT.bindTaskRows(view);
+      view.addEventListener('click', (e) => {
+        const n = e.target.closest('[data-note]');
+        if (n) UT.openNoteEditor(DB.get('notes', n.dataset.note));
+      });
+      page.update();
+    },
+
+    update() {
+      const s = DB.settings();
+      const tasks = DB.all('tasks');
+      const open = tasks.filter((t) => t.status !== 'done');
+      const overdue = open.filter((t) => t.dueDate && U.daysUntil(t.dueDate) < 0);
+      const horizon = s.upcomingDays || 7;
+      const week = open.filter((t) => t.dueDate && U.daysUntil(t.dueDate) >= 0 && U.daysUntil(t.dueDate) <= horizon);
+      const done = tasks.length - open.length;
+      const courses = DB.index('courses');
+      const subsByTask = new Map();
+      DB.all('subtasks').forEach((x) => { if (!subsByTask.has(x.taskId)) subsByTask.set(x.taskId, []); subsByTask.get(x.taskId).push(x); });
+
+      const upcoming = overdue.concat(week).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || (a.dueTime || '99').localeCompare(b.dueTime || '99'));
+      const next = week[0] ? week.slice().sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0] : null;
+
+      root.innerHTML = `
+        <section class="hero">
+          <div>
+            <h2>${greeting()}, ${esc(s.userName || 'Student')} 👋</h2>
+            <p class="muted">${open.length ? `You have <b>${U.plural(week.length, 'deadline')}</b> in the next ${horizon} days${overdue.length ? ` and <b class="text-critical">${overdue.length} overdue</b>` : ''}.` : 'All caught up — no open tasks.'}
+            ${next ? ` Next up: <b>${esc(next.title)}</b> (${esc(U.relativeDue(next.dueDate).toLowerCase())}).` : ''}</p>
+          </div>
+        </section>
+
+        <section class="stats">
+          <a class="stat" href="#/tasks"><span class="stat-label">${UI.icon('tasks')}Open tasks</span><b class="stat-value">${open.length}</b><span class="muted small">${U.plural(open.filter((t) => t.priority === 'high').length, 'high-priority task')}</span></a>
+          <a class="stat" href="#/tasks"><span class="stat-label">${UI.icon('clock')}Due in ${horizon} days</span><b class="stat-value">${week.length}</b><span class="muted small">${U.plural(week.filter((t) => U.daysUntil(t.dueDate) <= 1).length, 'task')} due by tomorrow</span></a>
+          <a class="stat ${overdue.length ? 'stat-critical' : ''}" href="#/tasks"><span class="stat-label">${UI.icon('alert')}Overdue</span><b class="stat-value">${overdue.length}</b><span class="muted small">${overdue.length ? 'Needs attention' : 'Nothing overdue'}</span></a>
+          <a class="stat" href="#/progress"><span class="stat-label">${UI.icon('check')}Completed</span><b class="stat-value">${done}</b><span class="muted small">${U.pct(done, tasks.length)}% of all tasks</span></a>
+        </section>
+
+        <div class="dash-grid">
+          <div class="card card-flush">
+            <h2 class="card-title pad">${UI.icon('clock')}Upcoming deadlines<a class="card-link" href="#/tasks">All tasks</a></h2>
+            ${upcoming.length ? `<ul class="task-list">${upcoming.map((t) => UT.taskRow(t, courses, subsByTask)).join('')}</ul>`
+              : UI.empty('No upcoming deadlines', `Nothing due in the next ${horizon} days. Enjoy the free time!`, '<button class="btn btn-ghost" data-new>Add a task</button>')}
+          </div>
+          <div class="stack">
+            ${classesCard(courses)}
+            ${progressCard()}
+            ${notesCard(courses)}
+            ${activityCard()}
+          </div>
+        </div>`;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.dashboard = page;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/tasks.js */
+/* UniTask — pages/tasks.js
+ * Task manager: add, edit, delete, complete, prioritise, filter, search, sort.
+ * Also exports UT.openTaskEditor() which the Dashboard reuses.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+  const PRIO_RANK = { high: 0, medium: 1, low: 2 };
+
+  const state = { view: 'open', q: '', course: '', priority: '', sort: 'due' };
+
+  /* ---------------- editor (modal) ---------------- */
+  function openTaskEditor(task, defaults = {}) {
+    const isNew = !task;
+    const t = task || Object.assign({ priority: 'medium', status: 'todo', type: 'assignment', dueDate: U.isoPlusDays(3) }, defaults);
+    let subs = isNew ? [] : DB.all('subtasks', { where: (s) => s.taskId === t.id, sort: (a, b) => a.position - b.position })
+      .map((s) => ({ id: s.id, title: s.title, done: s.done }));
+    const linkedNotes = isNew ? [] : DB.all('notes', { where: (n) => n.taskId === t.id });
+
+    const body = `
+      ${UI.F.text('title', 'Title', t.title, 'placeholder="e.g. Lab 6: JavaScript events" maxlength="120" required')}
+      <div class="grid-2">
+        ${UI.F.select('courseId', 'Course', UI.F.courseOptions(), t.courseId)}
+        ${UI.F.select('type', 'Type', ['assignment', 'exam', 'project', 'reading', 'other'], t.type)}
+      </div>
+      <div class="grid-3">
+        ${UI.F.select('priority', 'Priority', [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']], t.priority)}
+        ${UI.F.select('status', 'Status', [['todo', 'To do'], ['in_progress', 'In progress'], ['done', 'Done']], t.status)}
+        ${UI.F.input('number', 'estimatedHours', 'Estimate (h)', t.estimatedHours, 'min="0" max="500" step="0.5" placeholder="—"')}
+      </div>
+      <div class="grid-2">
+        ${UI.F.input('date', 'dueDate', 'Due date', t.dueDate)}
+        ${UI.F.input('time', 'dueTime', 'Due time', t.dueTime)}
+      </div>
+      ${UI.F.textarea('description', 'Description', t.description, 'rows="3" placeholder="Requirements, links, grading criteria…"')}
+      <div class="field">
+        <span>Subtasks <small class="muted" id="sub-count"></small></span>
+        <ul class="sub-edit" id="sub-list"></ul>
+        <div class="sub-add">
+          <input type="text" id="sub-new" data-ignore placeholder="Add a step and press Enter" maxlength="120">
+          <button type="button" class="btn btn-ghost btn-sm" id="sub-add-btn">${UI.icon('plus')}Add</button>
+        </div>
+      </div>
+      ${linkedNotes.length ? `<div class="field"><span>Linked notes</span><div class="linked">${linkedNotes.map((n) =>
+        `<a href="#/notes" class="chip" data-note="${n.id}">${UI.icon('note')}${esc(n.title)}</a>`).join('')}</div></div>` : ''}`;
+
+    UI.openModal({
+      title: isNew ? 'New task' : 'Edit task',
+      body,
+      wide: true,
+      submitLabel: isNew ? 'Create task' : 'Save changes',
+      footerExtra: isNew ? '' : `<button type="button" class="btn btn-ghost btn-danger-text" id="task-del">${UI.icon('trash')}Delete</button>`,
+      onOpen(dialog) {
+        const list = dialog.querySelector('#sub-list');
+        const input = dialog.querySelector('#sub-new');
+        const render = () => {
+          list.innerHTML = subs.map((s, i) => `
+            <li>
+              <label class="check"><input type="checkbox" data-ignore data-i="${i}" ${s.done ? 'checked' : ''}><span></span></label>
+              <input type="text" class="sub-title" data-ignore data-i="${i}" value="${esc(s.title)}" maxlength="120" aria-label="Subtask ${i + 1}">
+              <button type="button" class="icon-btn icon-btn-sm" data-rm="${i}" aria-label="Remove subtask">${UI.icon('x')}</button>
+            </li>`).join('');
+          dialog.querySelector('#sub-count').textContent = subs.length ? `${subs.filter((s) => s.done).length}/${subs.length} done` : '';
+        };
+        const add = () => {
+          const v = input.value.trim();
+          if (!v) return;
+          subs.push({ title: v, done: false });
+          input.value = '';
+          render();
+        };
+        list.addEventListener('change', (e) => { if (e.target.type === 'checkbox') { subs[e.target.dataset.i].done = e.target.checked; render(); } });
+        list.addEventListener('input', (e) => { if (e.target.classList.contains('sub-title')) subs[e.target.dataset.i].title = e.target.value; });
+        list.addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (b) { subs.splice(+b.dataset.rm, 1); render(); } });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+        dialog.querySelector('#sub-add-btn').addEventListener('click', add);
+        dialog.querySelectorAll('[data-note]').forEach((a) => a.addEventListener('click', () => { UI.closeModal(); }));
+        const del = dialog.querySelector('#task-del');
+        if (del) del.addEventListener('click', () => { UI.closeModal(); UT.actions.remove('tasks', t.id, t.title); });
+        render();
+      },
+      onSubmit(values) {
+        const pending = document.querySelector('#sub-new');
+        if (pending && pending.value.trim()) subs.push({ title: pending.value.trim(), done: false });
+        const saved = isNew ? DB.insert('tasks', values) : DB.update('tasks', t.id, values);
+        syncSubtasks(saved.id, subs.filter((s) => s.title.trim()));
+        UI.toast(isNew ? 'Task created' : 'Task saved', 'success');
+      }
+    });
+  }
+
+  /** Diff the edited subtask list against the table: insert / update / delete. */
+  function syncSubtasks(taskId, list) {
+    const existing = DB.all('subtasks', { where: (s) => s.taskId === taskId });
+    const keep = new Set(list.filter((s) => s.id).map((s) => s.id));
+    existing.filter((s) => !keep.has(s.id)).forEach((s) => DB.remove('subtasks', s.id));
+    list.forEach((s, position) => {
+      if (s.id) DB.update('subtasks', s.id, { title: s.title, done: s.done, position });
+      else DB.insert('subtasks', { taskId, title: s.title, done: s.done, position });
+    });
+  }
+
+  /* ---------------- queries ---------------- */
+  function bucketOf(t) {
+    if (t.status === 'done') return 'done';
+    if (!t.dueDate) return 'nodate';
+    const n = U.daysUntil(t.dueDate);
+    if (n < 0) return 'overdue';
+    if (n === 0) return 'today';
+    if (n <= 7) return 'week';
+    return 'later';
+  }
+  const BUCKETS = [
+    ['overdue', 'Overdue'], ['today', 'Today'], ['week', 'Next 7 days'], ['later', 'Later'], ['nodate', 'No deadline'], ['done', 'Completed']
+  ];
+
+  function filtered() {
+    const q = state.q.trim().toLowerCase();
+    const courses = DB.index('courses');
+    return DB.all('tasks', {
+      where: (t) => {
+        if (state.view === 'open' && t.status === 'done') return false;
+        if (state.view === 'today' && !(t.status !== 'done' && t.dueDate && U.daysUntil(t.dueDate) <= 0)) return false;
+        if (state.view === 'week' && !(t.status !== 'done' && t.dueDate && U.daysUntil(t.dueDate) <= 7)) return false;
+        if (state.view === 'overdue' && bucketOf(t) !== 'overdue') return false;
+        if (state.view === 'done' && t.status !== 'done') return false;
+        if (state.course === '_none' ? t.courseId : (state.course && t.courseId !== state.course)) return false;
+        if (state.priority && t.priority !== state.priority) return false;
+        if (q) {
+          const c = courses.get(t.courseId);
+          const hay = `${t.title} ${t.description} ${c ? c.name + ' ' + c.code : ''} ${t.type}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      },
+      sort: (a, b) => {
+        if (state.sort === 'priority') return PRIO_RANK[a.priority] - PRIO_RANK[b.priority] || (a.dueDate || '9').localeCompare(b.dueDate || '9');
+        if (state.sort === 'created') return b.createdAt.localeCompare(a.createdAt);
+        if (state.sort === 'title') return a.title.localeCompare(b.title);
+        if (a.status === 'done' && b.status === 'done') return (b.completedAt || '').localeCompare(a.completedAt || '');
+        return (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || (a.dueTime || '99').localeCompare(b.dueTime || '99') || PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
+      }
+    });
+  }
+
+  /* ---------------- rendering ---------------- */
+  function taskRow(t, courses, subsByTask) {
+    const c = courses.get(t.courseId);
+    const subs = subsByTask.get(t.id) || [];
+    const subDone = subs.filter((s) => s.done).length;
+    return `
+      <li class="task ${t.status === 'done' ? 'is-done' : ''}" data-id="${t.id}" style="--course:${c ? esc(c.color) : 'var(--border-strong)'}">
+        <label class="check check-round" title="${t.status === 'done' ? 'Mark as not done' : 'Mark as done'}">
+          <input type="checkbox" data-toggle="${t.id}" ${t.status === 'done' ? 'checked' : ''} aria-label="Complete ${esc(t.title)}"><span></span>
+        </label>
+        <button type="button" class="task-main" data-edit="${t.id}">
+          <span class="task-title">${esc(t.title)}</span>
+          <span class="task-meta">
+            ${UI.courseChip(c)}
+            <span class="muted">${U.capitalize(t.type)}</span>
+            ${t.status === 'in_progress' ? UI.statusBadge(t.status) : ''}
+            ${subs.length ? `<span class="subprog" title="Subtasks"><i style="width:${U.pct(subDone, subs.length)}%"></i></span><span class="muted tiny">${subDone}/${subs.length}</span>` : ''}
+          </span>
+        </button>
+        <span class="task-side">
+          ${UI.dueBadge(t)}
+          ${UI.priorityBadge(t.priority)}
+        </span>
+        <button type="button" class="icon-btn icon-btn-sm task-del" data-del="${t.id}" aria-label="Delete ${esc(t.title)}">${UI.icon('trash')}</button>
+      </li>`;
+  }
+
+  function renderList(el, tasks) {
+    const courses = DB.index('courses');
+    const subsByTask = new Map();
+    DB.all('subtasks').forEach((s) => {
+      if (!subsByTask.has(s.taskId)) subsByTask.set(s.taskId, []);
+      subsByTask.get(s.taskId).push(s);
+    });
+
+    if (!tasks.length) {
+      const any = DB.count('tasks') > 0;
+      el.innerHTML = UI.empty(any ? 'No tasks match' : 'No tasks yet',
+        any ? 'Try another filter or clear the search.' : 'Add your first assignment to start planning.',
+        `<button class="btn btn-primary" data-new>${UI.icon('plus')}Add task</button>`);
+      return;
+    }
+    if (state.sort === 'due') {
+      el.innerHTML = BUCKETS.map(([key, label]) => {
+        const group = tasks.filter((t) => bucketOf(t) === key);
+        if (!group.length) return '';
+        return `<section class="task-group group-${key}"><h3>${label} <span class="count">${group.length}</span></h3>
+          <ul class="task-list">${group.map((t) => taskRow(t, courses, subsByTask)).join('')}</ul></section>`;
+      }).join('');
+    } else {
+      el.innerHTML = `<ul class="task-list">${tasks.map((t) => taskRow(t, courses, subsByTask)).join('')}</ul>`;
+    }
+  }
+
+  /** Wire up the shared row interactions (used by Dashboard too). */
+  function bindTaskRows(root) {
+    root.addEventListener('change', (e) => {
+      const id = e.target.dataset && e.target.dataset.toggle;
+      if (!id) return;
+      const done = e.target.checked;
+      DB.update('tasks', id, { status: done ? 'done' : 'todo' });
+      UI.toast(done ? 'Nice! Task completed' : 'Task reopened', 'success');
+    });
+    root.addEventListener('click', (e) => {
+      const edit = e.target.closest('[data-edit]');
+      if (edit) { openTaskEditor(DB.get('tasks', edit.dataset.edit)); return; }
+      const del = e.target.closest('[data-del]');
+      if (del) { const t = DB.get('tasks', del.dataset.del); UT.actions.remove('tasks', t.id, t.title); return; }
+      if (e.target.closest('[data-new]')) openTaskEditor(null);
+    });
+  }
+
+  let els = null;
+  const page = {
+    title: 'Tasks',
+    subtitle() {
+      const open = DB.count('tasks', (t) => t.status !== 'done');
+      return `${U.plural(open, 'open task')} · ${U.plural(DB.count('tasks', (t) => t.status === 'done'), 'completed task')}`;
+    },
+    actions: () => `<button class="btn btn-primary" id="add-task">${UI.icon('plus')}<span>New task</span></button>`,
+
+    mount(view) {
+      const counts = () => {
+        const all = DB.all('tasks');
+        return {
+          open: all.filter((t) => t.status !== 'done').length,
+          today: all.filter((t) => t.status !== 'done' && t.dueDate && U.daysUntil(t.dueDate) <= 0).length,
+          week: all.filter((t) => t.status !== 'done' && t.dueDate && U.daysUntil(t.dueDate) <= 7).length,
+          overdue: all.filter((t) => bucketOf(t) === 'overdue').length,
+          done: all.filter((t) => t.status === 'done').length,
+          all: all.length
+        };
+      };
+      view.innerHTML = `
+        <div class="toolbar">
+          <div class="tabs" role="tablist" id="task-tabs"></div>
+          <div class="toolbar-row">
+            <label class="search">${UI.icon('search')}<input type="search" id="task-q" placeholder="Search tasks…" value="${esc(state.q)}" aria-label="Search tasks"></label>
+            <select id="task-course" aria-label="Filter by course"></select>
+            <select id="task-prio" aria-label="Filter by priority">
+              <option value="">Any priority</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+            </select>
+            <select id="task-sort" aria-label="Sort">
+              <option value="due">Sort: deadline</option><option value="priority">Sort: priority</option>
+              <option value="created">Sort: newest</option><option value="title">Sort: A–Z</option>
+            </select>
+          </div>
+        </div>
+        <div id="task-results" class="card card-flush"></div>`;
+      els = {
+        tabs: view.querySelector('#task-tabs'),
+        list: view.querySelector('#task-results'),
+        course: view.querySelector('#task-course'),
+        counts
+      };
+      view.querySelector('#task-prio').value = state.priority;
+      view.querySelector('#task-sort').value = state.sort;
+
+      els.tabs.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-view]');
+        if (b) { state.view = b.dataset.view; page.update(); }
+      });
+      view.querySelector('#task-q').addEventListener('input', U.debounce((e) => { state.q = e.target.value; page.update(); }, 120));
+      els.course.addEventListener('change', (e) => { state.course = e.target.value; page.update(); });
+      view.querySelector('#task-prio').addEventListener('change', (e) => { state.priority = e.target.value; page.update(); });
+      view.querySelector('#task-sort').addEventListener('change', (e) => { state.sort = e.target.value; page.update(); });
+      document.getElementById('add-task').addEventListener('click', () => openTaskEditor(null, state.course && state.course !== '_none' ? { courseId: state.course } : {}));
+      bindTaskRows(els.list);
+      page.update();
+    },
+
+    update() {
+      const n = els.counts();
+      const tabs = [['open', 'Open', n.open], ['today', 'Due today', n.today], ['week', 'This week', n.week], ['overdue', 'Overdue', n.overdue], ['done', 'Completed', n.done], ['all', 'All', n.all]];
+      els.tabs.innerHTML = tabs.map(([v, l, c]) =>
+        `<button type="button" role="tab" data-view="${v}" aria-selected="${state.view === v}" class="tab ${state.view === v ? 'active' : ''} ${v === 'overdue' && c ? 'tab-alert' : ''}">${l}<span class="count">${c}</span></button>`).join('');
+      els.course.innerHTML = [['', 'All courses']].concat(UI.F.courseOptions(false), [['_none', 'No course']])
+        .map(([v, l]) => `<option value="${esc(v)}" ${v === state.course ? 'selected' : ''}>${esc(l)}</option>`).join('');
+      if (state.course && state.course !== '_none' && !DB.get('courses', state.course)) state.course = '';
+      renderList(els.list, filtered());
+    },
+
+    /** Called by the Courses page: open the task list filtered to one course */
+    showCourse(courseId) { state.course = courseId; state.view = 'all'; }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.tasks = page;
+  UT.openTaskEditor = openTaskEditor;
+  UT.taskRow = taskRow;
+  UT.bindTaskRows = bindTaskRows;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/schedule.js */
+/* UniTask — pages/schedule.js
+ * Weekly timetable: view and manage classes, times and locations.
+ * Desktop: time grid. Phone: list grouped by day.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+  const KINDS = [['lecture', 'Lecture'], ['practice', 'Practice'], ['lab', 'Lab'], ['seminar', 'Seminar']];
+
+  function overlaps(row, ignoreId) {
+    const s = U.timeToMin(row.startTime);
+    const e = U.timeToMin(row.endTime);
+    return DB.all('classes').find((c) => c.id !== ignoreId && c.day === Number(row.day) &&
+      U.timeToMin(c.startTime) < e && s < U.timeToMin(c.endTime));
+  }
+
+  function openClassEditor(cls, defaults = {}) {
+    if (!DB.count('courses')) {
+      UI.toast('Create a course first — every class belongs to a course', 'error');
+      UT.openCourseEditor(null);
+      return;
+    }
+    const isNew = !cls;
+    const c = cls || Object.assign({ day: U.isoWeekday(new Date()), startTime: '09:00', endTime: '10:30', kind: 'lecture' }, defaults);
+    UI.openModal({
+      title: isNew ? 'Add class' : 'Edit class',
+      submitLabel: isNew ? 'Add to schedule' : 'Save changes',
+      body: `
+        ${UI.F.select('courseId', 'Course', UI.F.courseOptions(false), c.courseId)}
+        <div class="grid-2">
+          ${UI.F.select('day', 'Day', U.DAY_NAMES.map((n, i) => [i + 1, n]), c.day)}
+          ${UI.F.select('kind', 'Type', KINDS, c.kind)}
+        </div>
+        <div class="grid-2">
+          ${UI.F.input('time', 'startTime', 'Starts', c.startTime, 'required step="300"')}
+          ${UI.F.input('time', 'endTime', 'Ends', c.endTime, 'required step="300"')}
+        </div>
+        ${UI.F.text('location', 'Location', c.location, 'placeholder="e.g. Room 301, Lab 4, Zoom" maxlength="60"')}`,
+      footerExtra: isNew ? '' : `<button type="button" class="btn btn-ghost btn-danger-text" id="cls-del">${UI.icon('trash')}Delete</button>`,
+      onOpen(dialog) {
+        const del = dialog.querySelector('#cls-del');
+        if (del) del.addEventListener('click', () => { UI.closeModal(); UT.actions.remove('classes', c.id, 'this class'); });
+      },
+      onSubmit(values) {
+        values.day = Number(values.day);
+        const clash = values.startTime && values.endTime && values.endTime > values.startTime && overlaps(values, c.id);
+        if (clash) {
+          const other = DB.get('courses', clash.courseId);
+          throw new DB.ValidationError({ startTime: `Overlaps with ${other ? other.name : 'another class'} (${clash.startTime}–${clash.endTime})` });
+        }
+        if (isNew) DB.insert('classes', values); else DB.update('classes', c.id, values);
+        UI.toast(isNew ? 'Class added' : 'Class saved', 'success');
+      }
+    });
+  }
+
+  let els = null;
+  const page = {
+    title: 'Schedule',
+    subtitle() {
+      const mins = DB.all('classes').reduce((s, c) => s + U.timeToMin(c.endTime) - U.timeToMin(c.startTime), 0);
+      return `${U.plural(DB.count('classes'), 'class', 'classes')} per week · ${(mins / 60).toFixed(1).replace('.0', '')} h in class`;
+    },
+    actions: () => `<button class="btn btn-primary" id="add-class">${UI.icon('plus')}<span>Add class</span></button>`,
+
+    mount(view) {
+      view.innerHTML = `<div id="sched"></div>`;
+      els = { box: view.querySelector('#sched') };
+      document.getElementById('add-class').addEventListener('click', () => openClassEditor(null));
+      view.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-class]');
+        if (b) { openClassEditor(DB.get('classes', b.dataset.class)); return; }
+        const slot = e.target.closest('[data-slot]');
+        if (slot) {
+          const [day, hour] = slot.dataset.slot.split('|').map(Number);
+          openClassEditor(null, { day, startTime: U.minToTime(hour * 60), endTime: U.minToTime(hour * 60 + 90) });
+        }
+        if (e.target.closest('[data-new-class]')) openClassEditor(null);
+      });
+      page.update();
+    },
+
+    update() {
+      const s = DB.settings();
+      const classes = DB.all('classes');
+      const courses = DB.index('courses');
+      if (!classes.length) {
+        els.box.innerHTML = `<div class="card">${UI.empty('Your week is empty', 'Add lectures, labs and seminars to build your weekly timetable.',
+          `<button class="btn btn-primary" data-new-class>${UI.icon('plus')}Add class</button>`)}</div>`;
+        return;
+      }
+      const hasWeekend = classes.some((c) => c.day > 5);
+      const days = s.showWeekend || hasWeekend ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
+      let startH = Math.floor(U.timeToMin(s.dayStart || '08:00') / 60);
+      let endH = Math.ceil(U.timeToMin(s.dayEnd || '19:00') / 60);
+      classes.forEach((c) => {
+        startH = Math.min(startH, Math.floor(U.timeToMin(c.startTime) / 60));
+        endH = Math.max(endH, Math.ceil(U.timeToMin(c.endTime) / 60));
+      });
+      const HOUR = 56; // px per hour
+      const todayWd = U.isoWeekday(new Date());
+      const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+      const weekStart = U.startOfWeek(new Date());
+
+      const block = (c) => {
+        const course = courses.get(c.courseId);
+        const top = ((U.timeToMin(c.startTime) - startH * 60) / 60) * HOUR;
+        const h = ((U.timeToMin(c.endTime) - U.timeToMin(c.startTime)) / 60) * HOUR;
+        return `<button type="button" class="cls kind-${c.kind}" data-class="${c.id}" style="top:${top}px;height:${h - 3}px;--course:${esc(course ? course.color : '#888')}"
+            title="${esc(course ? course.name : '')} · ${c.startTime}–${c.endTime}${c.location ? ' · ' + esc(c.location) : ''}">
+          <b>${esc(course ? course.name : 'Class')}</b>
+          <small>${c.startTime}–${c.endTime}</small>
+          <small>${U.capitalize(c.kind)}${c.location ? ' · ' + esc(c.location) : ''}</small>
+        </button>`;
+      };
+
+      const hours = [];
+      for (let h = startH; h < endH; h++) hours.push(h);
+
+      const grid = `
+        <div class="card card-flush week-wrap">
+          <div class="week" style="--cols:${days.length};--hour:${HOUR}px">
+            <div class="week-head"><span></span>${days.map((d) => {
+              const date = U.addDays(weekStart, d - 1);
+              return `<span class="${d === todayWd ? 'today' : ''}">${U.DAY_SHORT[d - 1]}<small>${date.getDate()} ${U.MONTH_SHORT[date.getMonth()]}</small></span>`;
+            }).join('')}</div>
+            <div class="week-body" style="height:${(endH - startH) * HOUR}px">
+              <div class="hours">${hours.map((h) => `<span style="top:${(h - startH) * HOUR}px">${String(h).padStart(2, '0')}:00</span>`).join('')}</div>
+              ${days.map((d) => `
+                <div class="day-col ${d === todayWd ? 'today' : ''}">
+                  ${hours.map((h) => `<button type="button" class="slot" data-slot="${d}|${h}" style="top:${(h - startH) * HOUR}px" aria-label="Add class on ${U.DAY_NAMES[d - 1]} at ${h}:00"></button>`).join('')}
+                  ${classes.filter((c) => c.day === d).map(block).join('')}
+                  ${d === todayWd && nowMin >= startH * 60 && nowMin <= endH * 60 ? `<i class="now-line" style="top:${((nowMin - startH * 60) / 60) * HOUR}px"></i>` : ''}
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+
+      const list = `
+        <div class="day-list">
+          ${days.map((d) => {
+            const items = classes.filter((c) => c.day === d).sort((a, b) => a.startTime.localeCompare(b.startTime));
+            return `<section class="card ${d === todayWd ? 'is-today' : ''}"><h3>${U.DAY_NAMES[d - 1]}${d === todayWd ? ' <span class="pill">Today</span>' : ''}</h3>
+              ${items.length ? `<ol class="timeline">${items.map((c) => {
+                const course = courses.get(c.courseId);
+                return `<li style="--course:${esc(course ? course.color : '#888')}"><button type="button" data-class="${c.id}" class="tl-btn">
+                  <span class="tl-time">${c.startTime}<small>${c.endTime}</small></span>
+                  <span class="tl-body"><b>${esc(course ? course.name : 'Class')}</b><small class="muted">${U.capitalize(c.kind)}${c.location ? ' · ' + esc(c.location) : ''}</small></span></button></li>`;
+              }).join('')}</ol>` : '<p class="muted small">No classes</p>'}</section>`;
+          }).join('')}
+        </div>`;
+
+      // weekly load per course
+      const load = new Map();
+      classes.forEach((c) => load.set(c.courseId, (load.get(c.courseId) || 0) + U.timeToMin(c.endTime) - U.timeToMin(c.startTime)));
+      const legend = `<div class="legend-row">${[...load.entries()].sort((a, b) => b[1] - a[1]).map(([id, m]) => {
+        const c = courses.get(id);
+        return `<span class="chip"><i class="dot" style="background:${esc(c ? c.color : '#888')}"></i>${esc(c ? c.name : '—')}<em class="muted">${(m / 60).toFixed(1).replace('.0', '')} h</em></span>`;
+      }).join('')}</div>`;
+
+      els.box.innerHTML = legend + grid + list;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.schedule = page;
+  UT.openClassEditor = openClassEditor;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/notes.js */
+/* UniTask — pages/notes.js
+ * Study notes: create, edit, delete, pin, tag and search.
+ * A note can be linked to a course and (optionally) to one task.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+  const state = { q: '', course: '', tag: '' };
+
+  function taskOptions(currentId) {
+    const courses = DB.index('courses');
+    const list = DB.all('tasks', {
+      where: (t) => t.status !== 'done' || t.id === currentId,
+      sort: (a, b) => (a.dueDate || '9').localeCompare(b.dueDate || '9')
+    }).map((t) => {
+      const c = courses.get(t.courseId);
+      return [t.id, `${t.title}${c ? ' — ' + c.name : ''}`];
+    });
+    return [['', 'Not linked to a task']].concat(list);
+  }
+
+  function openNoteEditor(note, defaults = {}) {
+    const isNew = !note;
+    const n = note || Object.assign({ tags: [], pinned: false }, defaults);
+    UI.openModal({
+      title: isNew ? 'New note' : 'Edit note',
+      wide: true,
+      submitLabel: isNew ? 'Create note' : 'Save changes',
+      body: `
+        ${UI.F.text('title', 'Title', n.title, 'placeholder="e.g. SQL JOIN types" maxlength="120"')}
+        <div class="grid-2">
+          ${UI.F.select('courseId', 'Course', UI.F.courseOptions(), n.courseId)}
+          ${UI.F.select('taskId', 'Linked task', taskOptions(n.taskId), n.taskId)}
+        </div>
+        ${UI.F.textarea('content', 'Content', n.content, 'rows="10" class="note-area" placeholder="Write your notes here…"')}
+        <div class="grid-2 align-end">
+          ${UI.F.text('tags', 'Tags (comma separated)', (n.tags || []).join(', '), 'placeholder="exam, formulas"')}
+          ${UI.F.checkbox('pinned', 'Pin to dashboard', n.pinned)}
+        </div>
+        ${!isNew ? `<p class="muted tiny">Created ${esc(U.formatDateTime(n.createdAt))} · Updated ${esc(U.timeAgo(n.updatedAt))}</p>` : ''}`,
+      footerExtra: isNew ? '' : `<button type="button" class="btn btn-ghost btn-danger-text" id="note-del">${UI.icon('trash')}Delete</button>`,
+      onOpen(dialog) {
+        const del = dialog.querySelector('#note-del');
+        if (del) del.addEventListener('click', () => { UI.closeModal(); UT.actions.remove('notes', n.id, n.title); });
+        // when a task is chosen, adopt its course if none chosen yet
+        const task = dialog.querySelector('[name=taskId]');
+        const course = dialog.querySelector('[name=courseId]');
+        task.addEventListener('change', () => {
+          const t = DB.get('tasks', task.value);
+          if (t && t.courseId && !course.value) course.value = t.courseId;
+        });
+      },
+      onSubmit(values) {
+        if (isNew) DB.insert('notes', values); else DB.update('notes', n.id, values);
+        UI.toast(isNew ? 'Note created' : 'Note saved', 'success');
+      }
+    });
+  }
+
+  function highlight(text, q) {
+    const safe = esc(text);
+    if (!q) return safe;
+    const rx = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').split(/\s+/).map(esc).join('|')})`, 'gi');
+    return safe.replace(rx, '<mark>$1</mark>');
+  }
+
+  let els = null;
+  const page = {
+    title: 'Notes',
+    subtitle: () => `${U.plural(DB.count('notes'), 'note')} · ${U.plural(DB.count('notes', (n) => n.pinned), 'pinned note')}`,
+    actions: () => `<button class="btn btn-primary" id="add-note">${UI.icon('plus')}<span>New note</span></button>`,
+
+    mount(view) {
+      view.innerHTML = `
+        <div class="toolbar">
+          <div class="toolbar-row">
+            <label class="search">${UI.icon('search')}<input type="search" id="note-q" placeholder="Search titles, content and tags…" value="${esc(state.q)}" aria-label="Search notes"></label>
+            <select id="note-course" aria-label="Filter by course"></select>
+          </div>
+          <div class="tag-row" id="tag-row"></div>
+        </div>
+        <div id="note-grid"></div>`;
+      els = { grid: view.querySelector('#note-grid'), course: view.querySelector('#note-course'), tags: view.querySelector('#tag-row') };
+      document.getElementById('add-note').addEventListener('click', () => openNoteEditor(null, state.course && state.course !== '_none' ? { courseId: state.course } : {}));
+      view.querySelector('#note-q').addEventListener('input', U.debounce((e) => { state.q = e.target.value; page.update(); }, 120));
+      els.course.addEventListener('change', (e) => { state.course = e.target.value; page.update(); });
+      els.tags.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-tag]');
+        if (b) { state.tag = state.tag === b.dataset.tag ? '' : b.dataset.tag; page.update(); }
+      });
+      view.addEventListener('click', (e) => {
+        const pin = e.target.closest('[data-pin]');
+        if (pin) { const n = DB.get('notes', pin.dataset.pin); DB.update('notes', n.id, { pinned: !n.pinned }); return; }
+        const card = e.target.closest('[data-open]');
+        if (card) openNoteEditor(DB.get('notes', card.dataset.open));
+        if (e.target.closest('[data-new]')) openNoteEditor(null);
+      });
+      page.update();
+    },
+
+    update() {
+      if (state.course && state.course !== '_none' && !DB.get('courses', state.course)) state.course = '';
+      els.course.innerHTML = [['', 'All courses']].concat(UI.F.courseOptions(false), [['_none', 'No course']])
+        .map(([v, l]) => `<option value="${esc(v)}" ${v === state.course ? 'selected' : ''}>${esc(l)}</option>`).join('');
+
+      const all = DB.all('notes');
+      const tagCount = new Map();
+      all.forEach((n) => (n.tags || []).forEach((t) => tagCount.set(t, (tagCount.get(t) || 0) + 1)));
+      if (state.tag && !tagCount.has(state.tag)) state.tag = '';
+      els.tags.innerHTML = [...tagCount.entries()].sort((a, b) => b[1] - a[1]).map(([t, c]) =>
+        `<button type="button" class="tag ${state.tag === t ? 'active' : ''}" data-tag="${esc(t)}">#${esc(t)} <span>${c}</span></button>`).join('');
+
+      const q = state.q.trim().toLowerCase();
+      const courses = DB.index('courses');
+      const tasks = DB.index('tasks');
+      const notes = all.filter((n) => {
+        if (state.course === '_none' ? n.courseId : (state.course && n.courseId !== state.course)) return false;
+        if (state.tag && !(n.tags || []).includes(state.tag)) return false;
+        if (q) {
+          const c = courses.get(n.courseId);
+          const hay = `${n.title} ${n.content} ${(n.tags || []).join(' ')} ${c ? c.name : ''}`.toLowerCase();
+          return q.split(/\s+/).every((w) => hay.includes(w));
+        }
+        return true;
+      }).sort((a, b) => (b.pinned - a.pinned) || b.updatedAt.localeCompare(a.updatedAt));
+
+      if (!notes.length) {
+        els.grid.innerHTML = `<div class="card">${UI.empty(all.length ? 'No notes match' : 'No notes yet',
+          all.length ? 'Try a different search or filter.' : 'Keep lecture notes, formulas and ideas in one place.',
+          `<button class="btn btn-primary" data-new>${UI.icon('plus')}New note</button>`)}</div>`;
+        return;
+      }
+      els.grid.innerHTML = `<div class="note-grid">${notes.map((n) => {
+        const c = courses.get(n.courseId);
+        const t = tasks.get(n.taskId);
+        return `<article class="note ${n.pinned ? 'pinned' : ''}" style="--course:${esc(c ? c.color : 'var(--border-strong)')}">
+          <button type="button" class="note-open" data-open="${n.id}" aria-label="Open note ${esc(n.title)}"></button>
+          <header><h3>${highlight(n.title, q)}</h3>
+            <button type="button" class="icon-btn icon-btn-sm pin-btn ${n.pinned ? 'on' : ''}" data-pin="${n.id}" aria-pressed="${n.pinned}" aria-label="${n.pinned ? 'Unpin' : 'Pin'} note">${UI.icon('star')}</button>
+          </header>
+          <p class="note-body">${highlight(n.content.length > 260 ? n.content.slice(0, 259) + '…' : n.content, q)}</p>
+          <footer>
+            ${UI.courseChip(c)}
+            ${t ? `<span class="chip chip-muted" title="Linked task">${UI.icon('tasks')}${esc(U.excerpt(t.title, 28))}</span>` : ''}
+            ${(n.tags || []).map((tg) => `<span class="tag-sm">#${esc(tg)}</span>`).join('')}
+            <span class="muted tiny note-time">${U.timeAgo(n.updatedAt)}</span>
+          </footer>
+        </article>`;
+      }).join('')}</div>`;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.notes = page;
+  UT.openNoteEditor = openNoteEditor;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/courses.js */
+/* UniTask — pages/courses.js
+ * Courses are the "parent" table: tasks, classes and notes link to them.
+ * This page shows those relationships (counts per course) and handles CRUD.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+  /* Fixed categorical order (validated for colour-blind separation) */
+  const COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+
+  function nextColor() {
+    const used = new Set(DB.all('courses').map((c) => c.color));
+    return COLORS.find((c) => !used.has(c)) || COLORS[DB.count('courses') % COLORS.length];
+  }
+
+  /** "Algorithms & Data Structures" → "AD" */
+  function initials(name) {
+    const words = String(name).split(/\s+/).filter((w) => /^[\p{L}\d]/u.test(w));
+    return (words.length > 1 ? words[0][0] + words[1][0] : String(name).slice(0, 2)).toUpperCase();
+  }
+
+  function openCourseEditor(course) {
+    const isNew = !course;
+    const c = course || { color: nextColor(), credits: 5 };
+    UI.openModal({
+      title: isNew ? 'New course' : 'Edit course',
+      submitLabel: isNew ? 'Create course' : 'Save changes',
+      body: `
+        ${UI.F.text('name', 'Course name', c.name, 'placeholder="e.g. Operating Systems" maxlength="80"')}
+        <div class="grid-2">
+          ${UI.F.text('code', 'Code', c.code, 'placeholder="CSE 301" maxlength="20"')}
+          ${UI.F.input('number', 'credits', 'Credits (ECTS)', c.credits, 'min="0" max="30" step="1"')}
+        </div>
+        ${UI.F.text('teacher', 'Teacher', c.teacher, 'placeholder="Dr. …" maxlength="80"')}
+        <div class="field"><span>Colour</span>
+          <div class="swatches" role="radiogroup" aria-label="Course colour">
+            ${COLORS.concat(COLORS.includes(c.color) ? [] : [c.color]).map((col) => `
+              <label class="swatch" style="--sw:${col}"><input type="radio" name="color" value="${col}" ${col === c.color ? 'checked' : ''} aria-label="${col}"><span></span></label>`).join('')}
+          </div>
+        </div>`,
+      footerExtra: isNew ? '' : `<button type="button" class="btn btn-ghost btn-danger-text" id="crs-del">${UI.icon('trash')}Delete</button>`,
+      onOpen(dialog) {
+        const del = dialog.querySelector('#crs-del');
+        if (del) del.addEventListener('click', () => { UI.closeModal(); UT.actions.remove('courses', c.id, c.name); });
+      },
+      onSubmit(values) {
+        if (isNew) DB.insert('courses', values); else DB.update('courses', c.id, values);
+        UI.toast(isNew ? 'Course created' : 'Course saved', 'success');
+      }
+    });
+  }
+
+  let root = null;
+  const page = {
+    title: 'Courses',
+    subtitle: () => `${U.plural(DB.count('courses'), 'course')} · ${DB.all('courses').reduce((s, c) => s + (c.credits || 0), 0)} credits`,
+    actions: () => `<button class="btn btn-primary" id="add-course">${UI.icon('plus')}<span>New course</span></button>`,
+
+    mount(view) {
+      root = view;
+      document.getElementById('add-course').addEventListener('click', () => openCourseEditor(null));
+      view.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (!b) return;
+        const c = DB.get('courses', b.dataset.id);
+        if (b.dataset.act === 'edit') openCourseEditor(c);
+        if (b.dataset.act === 'delete') UT.actions.remove('courses', c.id, c.name);
+        if (b.dataset.act === 'tasks') { UT.pages.tasks.showCourse(c.id); location.hash = '#/tasks'; }
+        if (b.dataset.act === 'add-task') UT.openTaskEditor(null, { courseId: c.id });
+        if (b.dataset.act === 'add-class') UT.openClassEditor(null, { courseId: c.id });
+        if (b.dataset.act === 'new') openCourseEditor(null);
+      });
+      page.update();
+    },
+
+    update() {
+      const courses = DB.all('courses', { sort: (a, b) => a.name.localeCompare(b.name) });
+      if (!courses.length) {
+        root.innerHTML = `<div class="card">${UI.empty('No courses yet', 'Courses connect your tasks, classes and notes.',
+          `<button class="btn btn-primary" data-act="new">${UI.icon('plus')}Add course</button>`)}</div>`;
+        return;
+      }
+      const tasks = DB.all('tasks');
+      const classes = DB.all('classes');
+      const notes = DB.all('notes');
+      root.innerHTML = `<div class="course-grid">${courses.map((c) => {
+        const ct = tasks.filter((t) => t.courseId === c.id);
+        const done = ct.filter((t) => t.status === 'done').length;
+        const cc = classes.filter((x) => x.courseId === c.id);
+        const mins = cc.reduce((s, x) => s + U.timeToMin(x.endTime) - U.timeToMin(x.startTime), 0);
+        const nextDue = ct.filter((t) => t.status !== 'done' && t.dueDate).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+        return `<article class="card course" style="--course:${esc(c.color)}">
+          <header>
+            <span class="course-badge">${esc(initials(c.name))}</span>
+            <div><h3>${esc(c.name)}</h3><p class="muted small">${esc([c.code, c.teacher].filter(Boolean).join(' · ') || '—')}</p></div>
+            <button class="icon-btn icon-btn-sm" data-act="edit" data-id="${c.id}" aria-label="Edit ${esc(c.name)}">${UI.icon('edit')}</button>
+          </header>
+          <dl class="course-stats">
+            <div><dt>Tasks</dt><dd>${ct.length - done}<small> open</small></dd></div>
+            <div><dt>Classes</dt><dd>${cc.length}<small> / week</small></dd></div>
+            <div><dt>In class</dt><dd>${(mins / 60).toFixed(1).replace('.0', '')}<small> h</small></dd></div>
+            <div><dt>Notes</dt><dd>${notes.filter((n) => n.courseId === c.id).length}</dd></div>
+          </dl>
+          <div class="bar-line" title="${done} of ${ct.length} tasks completed"><span style="width:${U.pct(done, ct.length)}%"></span></div>
+          <p class="small muted">${U.pct(done, ct.length)}% done · ${c.credits || 0} credits${nextDue ? ` · next: <b>${esc(U.excerpt(nextDue.title, 32))}</b> (${esc(U.relativeDue(nextDue.dueDate).toLowerCase())})` : ''}</p>
+          <footer>
+            <button class="btn btn-ghost btn-sm" data-act="tasks" data-id="${c.id}">${UI.icon('tasks')}Tasks</button>
+            <button class="btn btn-ghost btn-sm" data-act="add-task" data-id="${c.id}">${UI.icon('plus')}Task</button>
+            <button class="btn btn-ghost btn-sm" data-act="add-class" data-id="${c.id}">${UI.icon('plus')}Class</button>
+            <span class="spacer"></span>
+            <button class="icon-btn icon-btn-sm" data-act="delete" data-id="${c.id}" aria-label="Delete ${esc(c.name)}">${UI.icon('trash')}</button>
+          </footer>
+        </article>`;
+      }).join('')}</div>`;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.courses = page;
+  UT.openCourseEditor = openCourseEditor;
+  UT.COURSE_COLORS = COLORS;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/progress.js */
+/* UniTask — pages/progress.js
+ * Basic task-completion statistics, drawn with plain SVG / CSS (no chart library).
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+
+  /** Daily completions for the last `days` days (oldest → newest). */
+  function completionsByDay(tasks, days) {
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const iso = U.toISODate(U.addDays(U.today(), -i));
+      out.push({ iso, n: tasks.filter((t) => t.completedAt && U.toISODate(new Date(t.completedAt)) === iso).length });
+    }
+    return out;
+  }
+
+  function columnChart(series) {
+    const W = 640;
+    const H = 200;
+    const pad = { l: 28, r: 8, t: 12, b: 26 };
+    const max = Math.max(2, ...series.map((d) => d.n));
+    const ticks = max <= 4 ? max : 4;
+    const step = Math.ceil(max / ticks);
+    const top = step * ticks;
+    const cw = (W - pad.l - pad.r) / series.length;
+    const bw = Math.min(26, cw - 6);
+    const y = (v) => pad.t + (H - pad.t - pad.b) * (1 - v / top);
+    let grid = '';
+    for (let v = 0; v <= top; v += step) {
+      grid += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}" class="${v === 0 ? 'axis' : 'gridline'}"/>
+        <text x="${pad.l - 6}" y="${y(v) + 4}" text-anchor="end" class="tick">${v}</text>`;
+    }
+    const bars = series.map((d, i) => {
+      const x = pad.l + i * cw + (cw - bw) / 2;
+      const h = y(0) - y(d.n);
+      const date = U.parseDate(d.iso);
+      const label = i % 2 === (series.length - 1) % 2 ? `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle" class="tick">${date.getDate()}</text>` : '';
+      const tip = `${U.formatDate(d.iso, { weekday: true })}: ${U.plural(d.n, 'task')} completed`;
+      // rounded top only (data end), square at the baseline
+      const r = Math.min(4, h);
+      const path = d.n ? `<path class="bar" d="M${x},${y(0)} V${y(d.n) + r} Q${x},${y(d.n)} ${x + r},${y(d.n)} H${x + bw - r} Q${x + bw},${y(d.n)} ${x + bw},${y(d.n) + r} V${y(0)} Z"/>` : '';
+      return `<g class="col" data-tip="${esc(tip)}" tabindex="0"><rect x="${pad.l + i * cw}" y="${pad.t}" width="${cw}" height="${H - pad.t - pad.b}" class="hit"/>${path}${label}</g>`;
+    }).join('');
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tasks completed per day over the last ${series.length} days">${grid}${bars}</svg>`;
+  }
+
+  let root = null;
+  const page = {
+    title: 'Progress',
+    subtitle: () => 'Task-completion statistics',
+    actions: () => '',
+
+    mount(view) {
+      root = view;
+      page.update();
+    },
+
+    update() {
+      const tasks = DB.all('tasks');
+      const courses = DB.all('courses', { sort: (a, b) => a.name.localeCompare(b.name) });
+      if (!tasks.length) {
+        root.innerHTML = `<div class="card">${UI.empty('No data yet', 'Statistics appear once you add and complete tasks.', '<a class="btn btn-primary" href="#/tasks">Go to tasks</a>')}</div>`;
+        return;
+      }
+      const done = tasks.filter((t) => t.status === 'done');
+      const open = tasks.filter((t) => t.status !== 'done');
+      const withDue = done.filter((t) => t.dueDate && t.completedAt);
+      const onTime = withDue.filter((t) => U.toISODate(new Date(t.completedAt)) <= t.dueDate).length;
+      const last7 = done.filter((t) => t.completedAt && Date.now() - new Date(t.completedAt) < 7 * 864e5).length;
+      const prev7 = done.filter((t) => t.completedAt && Date.now() - new Date(t.completedAt) >= 7 * 864e5 && Date.now() - new Date(t.completedAt) < 14 * 864e5).length;
+      const hoursLeft = open.reduce((s, t) => s + (t.estimatedHours || 0), 0);
+      const overdue = open.filter((t) => t.dueDate && U.daysUntil(t.dueDate) < 0).length;
+      const series = completionsByDay(tasks, 14);
+      const delta = last7 - prev7;
+
+      const byCourse = courses.map((c) => {
+        const ct = tasks.filter((t) => t.courseId === c.id);
+        return { c, total: ct.length, done: ct.filter((t) => t.status === 'done').length };
+      }).filter((x) => x.total);
+      const none = tasks.filter((t) => !t.courseId);
+      if (none.length) byCourse.push({ c: null, total: none.length, done: none.filter((t) => t.status === 'done').length });
+
+      const prios = ['high', 'medium', 'low'].map((p) => ({
+        p, open: open.filter((t) => t.priority === p).length, done: done.filter((t) => t.priority === p).length
+      }));
+      const prioMax = Math.max(1, ...prios.map((x) => x.open + x.done));
+      const statuses = [['todo', 'To do'], ['in_progress', 'In progress'], ['done', 'Done']].map(([s, l]) => [l, tasks.filter((t) => t.status === s).length]);
+
+      root.innerHTML = `
+        <section class="stats">
+          <div class="stat"><span class="stat-label">${UI.icon('check')}Completion rate</span><b class="stat-value">${U.pct(done.length, tasks.length)}%</b><span class="muted small">${done.length} of ${tasks.length} tasks</span></div>
+          <div class="stat"><span class="stat-label">${UI.icon('activity')}Last 7 days</span><b class="stat-value">${last7}</b><span class="muted small">${delta === 0 ? 'same as the week before' : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs the week before`}</span></div>
+          <div class="stat"><span class="stat-label">${UI.icon('clock')}On time</span><b class="stat-value">${withDue.length ? U.pct(onTime, withDue.length) + '%' : '—'}</b><span class="muted small">${onTime} of ${withDue.length} finished before the deadline</span></div>
+          <div class="stat ${overdue ? 'stat-critical' : ''}"><span class="stat-label">${UI.icon('alert')}Work remaining</span><b class="stat-value">${hoursLeft ? hoursLeft + ' h' : open.length}</b><span class="muted small">${hoursLeft ? `estimated across ${U.plural(open.length, 'open task')}` : 'open tasks'}${overdue ? ` · ${overdue} overdue` : ''}</span></div>
+        </section>
+
+        <div class="progress-grid">
+          <section class="card chart-card">
+            <h2 class="card-title">Tasks completed per day <span class="muted small">last 14 days</span></h2>
+            ${columnChart(series)}
+            <details class="table-view"><summary>Show as table</summary>
+              <table class="data"><thead><tr><th>Date</th><th class="num">Completed</th></tr></thead><tbody>
+              ${series.slice().reverse().map((d) => `<tr><td>${U.formatDate(d.iso, { weekday: true })}</td><td class="num">${d.n}</td></tr>`).join('')}
+              </tbody></table></details>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">By status</h2>
+            <ul class="status-list">
+              ${statuses.map(([l, n]) => `<li><span>${l}</span><span class="bar-line thin"><span style="width:${U.pct(n, tasks.length)}%"></span></span><b>${n}</b></li>`).join('')}
+            </ul>
+            <h2 class="card-title mt">By priority</h2>
+            <div class="legend"><span><i class="sw sw-done"></i>Done</span><span><i class="sw sw-open"></i>Open</span></div>
+            <ul class="prio-bars">
+              ${prios.map((x) => `<li data-tip="${UI.PRIORITY_LABEL[x.p]} priority: ${x.done} done, ${x.open} open" tabindex="0">
+                <span class="lbl">${UI.PRIORITY_LABEL[x.p]}</span>
+                <span class="stack-bar"><span class="seg seg-done" style="width:${(x.done / prioMax) * 100}%"></span><span class="seg seg-open" style="width:${(x.open / prioMax) * 100}%"></span></span>
+                <span class="val">${x.done}/${x.open + x.done}</span></li>`).join('')}
+            </ul>
+          </section>
+
+          <section class="card span-2">
+            <h2 class="card-title">Completion by course</h2>
+            <ul class="course-bars">
+              ${byCourse.map(({ c, total, done: d }) => `<li data-tip="${esc(c ? c.name : 'No course')}: ${d} of ${total} done" tabindex="0">
+                <span class="lbl"><i class="dot" style="background:${esc(c ? c.color : 'var(--text-muted)')}"></i>${esc(c ? c.name : 'No course')}</span>
+                <span class="track"><span style="width:${U.pct(d, total)}%;background:${esc(c ? c.color : 'var(--text-muted)')}"></span></span>
+                <span class="val"><b>${U.pct(d, total)}%</b> <small class="muted">${d}/${total}</small></span></li>`).join('')}
+            </ul>
+          </section>
+        </div>`;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.progress = page;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/pages/settings.js */
+/* UniTask — pages/settings.js
+ * Preferences (profile, theme, schedule) and data management:
+ * export / import a JSON backup, reset demo data, and a read-only
+ * "database inspector" that shows what is stored in LocalStorage.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const esc = U.esc;
+  let inspect = 'tasks';
+
+  const kb = (bytes) => (bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`);
+
+  function download(filename, text) {
+    const blob = new Blob([text], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+
+  let root = null;
+  const page = {
+    title: 'Settings',
+    subtitle: () => 'Preferences and data',
+    actions: () => '',
+
+    mount(view) {
+      root = view;
+      view.addEventListener('change', (e) => {
+        const el = e.target;
+        if (el.id === 'inspect-table') { inspect = el.value; page.update(); return; }
+        if (!el.name || el.closest('#import-form')) return;
+        if (el.name === 'dayStart' || el.name === 'dayEnd') {
+          const s = DB.settings();
+          const next = Object.assign({}, s, { [el.name]: el.value });
+          if (!el.value || next.dayEnd <= next.dayStart) { UI.toast('Day end must be after day start', 'error'); el.value = s[el.name]; return; }
+        }
+        let v = el.type === 'checkbox' ? el.checked : el.value;
+        if (el.name === 'upcomingDays') v = U.clamp(Number(v) || 7, 1, 60);
+        if (el.name === 'userName') v = v.trim().slice(0, 40) || 'Student';
+        if (el.name === 'university') v = v.trim().slice(0, 80);
+        DB.saveSettings({ [el.name]: v });
+        if (el.name === 'theme') UT.applyTheme();
+        UI.toast('Settings saved', 'success');
+      });
+      view.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-do]');
+        if (!b) return;
+        const act = b.dataset.do;
+        if (act === 'export') {
+          download(`unitask-backup-${U.todayISO()}.json`, JSON.stringify(DB.exportData(), null, 2));
+          UI.toast('Backup downloaded', 'success');
+        }
+        if (act === 'import') root.querySelector('#import-file').click();
+        if (act === 'demo') {
+          if (await UI.confirm({ title: 'Reset demo data?', message: 'All your current data will be replaced with the sample semester.', confirmLabel: 'Reset' })) {
+            DB.reset({ withDemo: true });
+            UI.toast('Demo data restored', 'success');
+          }
+        }
+        if (act === 'clear') {
+          if (await UI.confirm({ title: 'Delete all data?', message: 'Every course, task, class and note in this browser will be permanently removed. Export a backup first if you need it.', confirmLabel: 'Delete everything' })) {
+            DB.reset({ withDemo: false });
+            UI.toast('All data deleted', 'success');
+          }
+        }
+        if (act === 'check') {
+          const p = DB.integrityCheck();
+          UI.toast(p.length ? `${p.length} broken reference(s) found` : 'Integrity check passed: all foreign keys are valid', p.length ? 'error' : 'success');
+        }
+      });
+      view.addEventListener('change', (e) => {
+        if (e.target.id !== 'import-file' || !e.target.files[0]) return;
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const data = JSON.parse(reader.result);
+            const counts = Object.entries(data.tables || {}).map(([t, rows]) => `${rows.length} ${t}`).join(', ');
+            if (await UI.confirm({ title: 'Import backup?', message: `This replaces all current data with: ${esc(counts)}.`, confirmLabel: 'Import', danger: false })) {
+              DB.importData(data);
+              UT.applyTheme();
+              UI.toast('Backup imported', 'success');
+            }
+          } catch (ex) {
+            UI.toast(`Import failed: ${ex.message}`, 'error');
+          }
+          e.target.value = '';
+        };
+        reader.readAsText(file);
+      });
+      page.update();
+    },
+
+    update() {
+      const s = DB.settings();
+      const info = DB.storageInfo();
+      const problems = DB.integrityCheck();
+      const rows = DB.all(inspect).slice(0, 5);
+      const theme = (v, label, ic) => `<label class="seg-opt"><input type="radio" name="theme" value="${v}" ${s.theme === v ? 'checked' : ''}><span>${UI.icon(ic)}${label}</span></label>`;
+
+      root.innerHTML = `
+        <div class="settings-grid">
+          <section class="card">
+            <h2 class="card-title">Profile</h2>
+            <div class="grid-2">
+              ${UI.F.text('userName', 'Your name', s.userName, 'maxlength="40"')}
+              ${UI.F.text('university', 'University', s.university, 'maxlength="80" placeholder="optional"')}
+            </div>
+            <h2 class="card-title mt">Appearance</h2>
+            <div class="segmented" role="radiogroup" aria-label="Theme">
+              ${theme('light', 'Light', 'sun')}${theme('dark', 'Dark', 'moon')}${theme('system', 'System', 'settings')}
+            </div>
+            <h2 class="card-title mt">Schedule & dashboard</h2>
+            <div class="grid-3">
+              ${UI.F.input('time', 'dayStart', 'Day starts', s.dayStart)}
+              ${UI.F.input('time', 'dayEnd', 'Day ends', s.dayEnd)}
+              ${UI.F.input('number', 'upcomingDays', 'Upcoming window (days)', s.upcomingDays, 'min="1" max="60"')}
+            </div>
+            ${UI.F.checkbox('showWeekend', 'Show Saturday and Sunday in the weekly schedule', s.showWeekend)}
+            ${UI.F.checkbox('confirmDelete', 'Ask for confirmation before deleting', s.confirmDelete)}
+          </section>
+
+          <section class="card">
+            <h2 class="card-title">${UI.icon('db')}Data & storage</h2>
+            <p class="small muted">${info.persistent ? 'Everything is stored in this browser’s <b>LocalStorage</b> — nothing is sent to a server.' : '<b class="text-critical">Storage is blocked in this browser</b> — data lives in memory and is lost when the tab closes.'}
+              Used: <b>${kb(info.totalBytes)}</b> of ~5 MB.</p>
+            <table class="data">
+              <thead><tr><th>Table</th><th>LocalStorage key</th><th class="num">Rows</th><th class="num">Size</th></tr></thead>
+              <tbody>${info.tables.map((t) => `<tr><td>${esc(t.label)}</td><td><code>${esc(t.key)}</code></td><td class="num">${t.rows}</td><td class="num">${kb(t.bytes)}</td></tr>`).join('')}
+              <tr><td>Settings</td><td><code>unitask.v1.settings</code></td><td class="num">1</td><td class="num">—</td></tr></tbody>
+            </table>
+            <p class="small ${problems.length ? 'text-critical' : 'text-good'}">${UI.icon(problems.length ? 'alert' : 'check')}
+              ${problems.length ? `${problems.length} broken foreign key reference(s)` : 'Referential integrity OK — every foreign key points to an existing row'} · schema v${info.meta.schemaVersion}</p>
+            <div class="btn-row">
+              <button class="btn btn-ghost" data-do="export">${UI.icon('download')}Export JSON</button>
+              <button class="btn btn-ghost" data-do="import">${UI.icon('upload')}Import JSON</button>
+              <button class="btn btn-ghost" data-do="check">${UI.icon('check')}Check integrity</button>
+            </div>
+            <form id="import-form" hidden><input type="file" id="import-file" accept="application/json,.json"></form>
+            <div class="btn-row">
+              <button class="btn btn-ghost" data-do="demo">Reset demo data</button>
+              <button class="btn btn-ghost btn-danger-text" data-do="clear">${UI.icon('trash')}Delete all data</button>
+            </div>
+          </section>
+
+          <section class="card span-2">
+            <h2 class="card-title">Database inspector <span class="muted small">read-only view of raw LocalStorage rows</span></h2>
+            <div class="toolbar-row">
+              <select id="inspect-table" aria-label="Table">${DB.TABLE_ORDER.map((t) => `<option value="${t}" ${t === inspect ? 'selected' : ''}>${t}</option>`).join('')}</select>
+              <span class="muted small">Showing ${rows.length} of ${DB.count(inspect)} rows from <code>unitask.v1.${inspect}</code></span>
+            </div>
+            <pre class="json">${esc(JSON.stringify(rows, null, 2))}</pre>
+          </section>
+        </div>`;
+    }
+  };
+
+  UT.pages = UT.pages || {};
+  UT.pages.settings = page;
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+  <script>/* assets/js/app.js */
+/* UniTask — app.js
+ * Application bootstrap: hash router, theme, navigation, shared actions
+ * (delete with confirmation) and the global tooltip.
+ */
+(function (UT) {
+  'use strict';
+
+  const { U, DB, UI } = UT;
+  const $ = UI.$;
+  const ROUTES = ['dashboard', 'tasks', 'schedule', 'notes', 'courses', 'progress', 'settings'];
+  let current = null;
+
+  /* ---------- theme ---------- */
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  UT.applyTheme = function () {
+    const pref = DB.settings().theme;
+    const theme = pref === 'system' ? (media.matches ? 'dark' : 'light') : pref;
+    document.documentElement.setAttribute('data-theme', theme);
+  };
+  media.addEventListener('change', () => { if (DB.settings().theme === 'system') UT.applyTheme(); });
+
+  /* ---------- shared actions ---------- */
+  UT.actions = {
+    /** Delete with a confirmation that explains cascades (ON DELETE rules). */
+    async remove(table, id, label) {
+      const plan = DB.previewDelete(table, id);
+      const details = UI.describeDeletePlan(plan);
+      const nouns = { tasks: 'task', notes: 'note', classes: 'class', courses: 'course' };
+      if (DB.settings().confirmDelete || details) {
+        const ok = await UI.confirm({
+          title: `Delete ${nouns[table]}?`,
+          message: `<b>${U.esc(label)}</b> will be permanently deleted.${details}`,
+          confirmLabel: 'Delete'
+        });
+        if (!ok) return;
+      }
+      DB.remove(table, id);
+      UI.toast(`${U.capitalize(nouns[table])} deleted`, 'success');
+    }
+  };
+
+  /* ---------- router ---------- */
+  function route() {
+    const name = (location.hash.replace(/^#\/?/, '').split('?')[0]) || 'dashboard';
+    const key = ROUTES.includes(name) ? name : 'dashboard';
+    const page = UT.pages[key];
+    current = page;
+    UI.closeModal();
+
+    document.querySelectorAll('#nav a').forEach((a) => {
+      const active = a.dataset.route === key;
+      a.classList.toggle('active', active);
+      if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    $('#page-title').textContent = page.title;
+    $('#page-subtitle').textContent = page.subtitle ? page.subtitle() : '';
+    $('#page-actions').innerHTML = page.actions ? page.actions() : '';
+    document.title = `${page.title} · UniTask`;
+
+    // a fresh <main> each time drops the previous page's event listeners
+    const old = $('#view');
+    const view = old.cloneNode(false);
+    old.replaceWith(view);
+    view.className = `view view-${key}`;
+    page.mount(view);
+    closeSidebar();
+    window.scrollTo(0, 0);
+    updateBadges();
+  }
+
+  function updateBadges() {
+    const n = DB.count('tasks', (t) => t.status !== 'done' && t.dueDate && U.daysUntil(t.dueDate) < 0);
+    const b = $('#badge-tasks');
+    b.hidden = !n;
+    b.textContent = n;
+    b.title = `${n} overdue`;
+  }
+
+  /* ---------- mobile sidebar ---------- */
+  function openSidebar() { $('#sidebar').classList.add('open'); $('#scrim').hidden = false; }
+  function closeSidebar() { $('#sidebar').classList.remove('open'); $('#scrim').hidden = true; }
+
+  /* ---------- tooltip for [data-tip] (charts) ---------- */
+  function initTooltip() {
+    const tip = document.createElement('div');
+    tip.className = 'tooltip';
+    tip.hidden = true;
+    document.body.appendChild(tip);
+    const show = (el, x, y) => {
+      tip.textContent = el.dataset.tip;
+      tip.hidden = false;
+      const r = tip.getBoundingClientRect();
+      tip.style.left = `${U.clamp(x - r.width / 2, 8, window.innerWidth - r.width - 8)}px`;
+      tip.style.top = `${Math.max(8, y - r.height - 12)}px`;
+    };
+    document.addEventListener('pointermove', (e) => {
+      const el = e.target.closest && e.target.closest('[data-tip]');
+      if (el) show(el, e.clientX, e.clientY); else tip.hidden = true;
+    });
+    document.addEventListener('focusin', (e) => {
+      const el = e.target.closest && e.target.closest('[data-tip]');
+      if (el) { const r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top); } else tip.hidden = true;
+    });
+    document.addEventListener('scroll', () => { tip.hidden = true; }, true);
+  }
+
+  /* ---------- boot ---------- */
+  function start() {
+    const { firstRun } = DB.init();
+    UT.applyTheme();
+
+    DB.subscribe((evt) => {
+      if (!current) return;
+      if (evt.table === 'settings' && current === UT.pages.settings) { current.update(); return; }
+      $('#page-subtitle').textContent = current.subtitle ? current.subtitle() : '';
+      current.update();
+      updateBadges();
+    });
+
+    $('#menu-btn').addEventListener('click', openSidebar);
+    $('#scrim').addEventListener('click', closeSidebar);
+    $('#theme-toggle').addEventListener('click', () => {
+      const now = document.documentElement.getAttribute('data-theme');
+      DB.saveSettings({ theme: now === 'dark' ? 'light' : 'dark' });
+      UT.applyTheme();
+    });
+    // keyboard shortcut: "n" = new item on the current page
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'n' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || !$('#modal-root').hidden) return;
+      const btn = $('#page-actions .btn-primary');
+      if (btn) { e.preventDefault(); btn.click(); }
+    });
+
+    window.addEventListener('hashchange', route);
+    initTooltip();
+    route();
+
+    if (firstRun) setTimeout(() => UI.toast('Welcome to UniTask! Demo data has been loaded — reset it any time in Settings.'), 400);
+    if (!DB.persistent) UI.toast('Browser storage is unavailable: changes will not be saved', 'error');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})(globalThis.UT = globalThis.UT || {});
+
+</script>
+</body>
+</html>

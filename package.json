@@ -1,0 +1,12 @@
+{
+  "name": "unitask",
+  "version": "1.0.0",
+  "description": "UniTask — Student Productivity Platform (HTML, CSS, JavaScript, LocalStorage)",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.js",
+    "build:single": "node scripts/build-single.js"
+  },
+  "license": "MIT"
+}
